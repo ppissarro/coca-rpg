@@ -35,6 +35,7 @@ export const ASSETS = {
   SWAT_CRASH_AUDIO: 'swat_team_crash_in',
   THIS_ROOM_CLEAR_AUDIO: 'thisroomsclear',
   PICASSO_AUDIO: 'picasso',
+  EVERYBRAND_AUDIO: 'everybrand',
   SWAT_LEFT: 'swat_left',
   SWAT_RIGHT: 'swat_right',
   SWAT_TOP: 'swat_top',

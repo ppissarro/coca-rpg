@@ -70,6 +70,7 @@ class OfficeScene extends Phaser.Scene {
     this.load.audio(ASSETS.SWAT_CRASH_AUDIO, 'swat_team_crash_in.wav')
     this.load.audio(ASSETS.THIS_ROOM_CLEAR_AUDIO, 'thisroomsclear.wav')
     this.load.audio(ASSETS.PICASSO_AUDIO, 'picasso.wav')
+    this.load.audio(ASSETS.EVERYBRAND_AUDIO, 'everybrand.mp3')
     this.load.image(ASSETS.SWAT_LEFT, 'swat_left.png')
     this.load.image(ASSETS.SWAT_RIGHT, 'swat_right.png')
     this.load.image(ASSETS.SWAT_TOP, 'swat_top.png')
@@ -403,6 +404,10 @@ class OfficeScene extends Phaser.Scene {
 
   handleBibleRead() {
     if (this.bibleState !== BIBLE_STATE.IN_SHELF) return
+
+    if (this.cache.audio.exists(ASSETS.EVERYBRAND_AUDIO)) {
+      this.sound.play(ASSETS.EVERYBRAND_AUDIO)
+    }
 
     this.bibleState = BIBLE_STATE.INSPECTED
     this.sceneState = SCENE_STATE.BIBLE_READ
