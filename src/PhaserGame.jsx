@@ -47,6 +47,10 @@ class OfficeScene extends Phaser.Scene {
     this.usingClerkSprite = false
     this.facing = 'right'
     this.audioUnlocked = false
+    this.waynesBg = null
+    this.waynesMusic = null
+    this.cat = null
+    this.catDirection = 1
   }
 
   unlockAudio() {
@@ -81,6 +85,17 @@ class OfficeScene extends Phaser.Scene {
     this.load.spritesheet(ASSETS.CLERK_LEFT, 'clerk_left.png', {
       frameWidth: ASSETS.CLERK_FRAME_WIDTH,
       frameHeight: ASSETS.CLERK_FRAME_HEIGHT,
+    })
+    this.load.image(ASSETS.COCA_INTERMISSION, 'coca.jpeg')
+    this.load.image(ASSETS.WAYNES_BG, 'waynes_bg.png')
+    this.load.audio(ASSETS.WAYNES_AUDIO, 'waynes.wav')
+    this.load.spritesheet(ASSETS.CAT_LEFT, 'cat_left.png', {
+      frameWidth: ASSETS.CAT_FRAME_WIDTH,
+      frameHeight: ASSETS.CAT_FRAME_HEIGHT,
+    })
+    this.load.spritesheet(ASSETS.CAT_RIGHT, 'cat_right.png', {
+      frameWidth: ASSETS.CAT_FRAME_WIDTH,
+      frameHeight: ASSETS.CAT_FRAME_HEIGHT,
     })
   }
 
@@ -269,7 +284,7 @@ class OfficeScene extends Phaser.Scene {
       fontSize: '8px',
       color: '#b0b6d1',
     })
-    this.add.text(8, layout.introCaptionY, 'Low-Level Legal Processing Unit 14B – Night Shift.', {
+    this.introCaptionText = this.add.text(8, layout.introCaptionY, 'Low-Level Legal Processing Unit 14B – Night Shift.', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#9ea3c4',
@@ -283,7 +298,7 @@ class OfficeScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer) => {
       this.unlockAudio()
 
-      if (!this.clerk || this.sceneState === SCENE_STATE.RAID || this.sceneState === SCENE_STATE.LOGO) return
+      if (!this.clerk || this.sceneState === SCENE_STATE.RAID || this.sceneState === SCENE_STATE.LOGO || this.sceneState === SCENE_STATE.INTERMISSION) return
 
       if (this.sceneState === SCENE_STATE.INTRO_IDLE && this.isSeated && !this.movementEnabled) {
         this.isSeated = false
@@ -293,9 +308,8 @@ class OfficeScene extends Phaser.Scene {
         return
       }
 
-      if (!this.movementEnabled) return
+      if (!this.movementEnabled && this.sceneState !== SCENE_STATE.WAYNES_ROOM) return
       if (pointer.y >= floorYMin && pointer.y <= floorYMax) {
-        // Lock movement to the floor line so the clerk only moves horizontally.
         this.target = { x: pointer.x, y: clerkWalkY }
         this.walkingToBible = false
       }
@@ -346,8 +360,34 @@ class OfficeScene extends Phaser.Scene {
       }
     }
 
+    if (this.sceneState === SCENE_STATE.WAYNES_ROOM) {
+      if (this.waynesBg) {
+        const w = this.scale.width
+        const { waynesScrollFactor } = layout
+        this.waynesBg.x = w / 2 - (this.clerk.x - w / 2) * waynesScrollFactor
+      }
+      if (this.cat) {
+        const { catLeftBound, catRightBound, catSpeed } = layout
+        this.cat.x += catSpeed * delta * this.catDirection
+        if (this.cat.x <= catLeftBound) {
+          this.cat.x = catLeftBound
+          this.catDirection = 1
+          this.cat.setTexture(ASSETS.CAT_RIGHT, 0)
+          this.cat.play('cat_walk_right', true)
+        } else if (this.cat.x >= catRightBound) {
+          this.cat.x = catRightBound
+          this.catDirection = -1
+          this.cat.setTexture(ASSETS.CAT_LEFT, 0)
+          this.cat.play('cat_walk_left', true)
+        }
+      }
+    }
+
     const bob =
-      !this.target && (this.sceneState === SCENE_STATE.INTRO_IDLE || this.sceneState === SCENE_STATE.FREE_WALK)
+      !this.target &&
+      (this.sceneState === SCENE_STATE.INTRO_IDLE ||
+        this.sceneState === SCENE_STATE.FREE_WALK ||
+        this.sceneState === SCENE_STATE.WAYNES_ROOM)
         ? Math.sin(this.idleTime * 0.005) * 1
         : 0
 
@@ -654,6 +694,9 @@ class OfficeScene extends Phaser.Scene {
 
       this.time.delayedCall(1500, () => {
         this.sceneState = SCENE_STATE.LOGO
+        if (this.backgroundImage) this.backgroundImage.setVisible(false)
+        if (this.overlayText) this.overlayText.setVisible(false)
+        if (this.introCaptionText) this.introCaptionText.setVisible(false)
         const dimmer = this.add.rectangle(width / 2, height / 2, width * 2, height * 2, 0x000000, 0).setOrigin(0.5)
         tweens.add({ targets: dimmer, alpha: { from: 0, to: 1 }, duration: 1200, ease: 'Quad.easeOut' })
 
@@ -669,7 +712,8 @@ class OfficeScene extends Phaser.Scene {
           })
         }
         if (this.cache.audio.exists(ASSETS.PICASSO_AUDIO)) {
-          this.sound.play(ASSETS.PICASSO_AUDIO)
+          this.picassoSound = this.sound.add(ASSETS.PICASSO_AUDIO)
+          this.picassoSound.play()
         }
 
         const logoText = this.add.text(width / 2, height / 2 - 8, 'CoCA', {
@@ -690,8 +734,125 @@ class OfficeScene extends Phaser.Scene {
           duration: 1200,
           ease: 'Quad.easeOut',
         })
+
+        this.time.delayedCall(3500, () => this.playIntermissionThenWaynesRoom(dimmer, logoText, subText))
       })
     })
+  }
+
+  playIntermissionThenWaynesRoom(dimmer, logoText, subText) {
+    const { width, height } = this.scale
+    const layout = getLayout(width, height)
+    const tweens = this.tweens
+
+    this.sceneState = SCENE_STATE.INTERMISSION
+    if (logoText) logoText.setVisible(false)
+    if (subText) subText.setVisible(false)
+
+    if (!this.textures.exists(ASSETS.COCA_INTERMISSION)) {
+      this.startWaynesRoom()
+      return
+    }
+
+    const coca = this.add.image(width / 2, height / 2, ASSETS.COCA_INTERMISSION).setOrigin(0.5).setScale(0).setAlpha(0)
+
+    tweens.add({
+      targets: coca,
+      scale: 1,
+      alpha: 1,
+      angle: { from: -360, to: 0 },
+      duration: 1100,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(1500, () => {
+          tweens.add({
+            targets: coca,
+            scale: 0,
+            alpha: 0.3,
+            angle: 360,
+            duration: 1100,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+              coca.destroy()
+              if (dimmer) dimmer.destroy()
+              if (this.picassoSound) {
+                tweens.add({
+                  targets: this.picassoSound,
+                  volume: 0,
+                  duration: 1000,
+                  ease: 'Quad.easeOut',
+                  onComplete: () => {
+                    if (this.picassoSound) this.picassoSound.stop()
+                    this.startWaynesRoom()
+                  },
+                })
+              } else {
+                this.startWaynesRoom()
+              }
+            },
+          })
+        })
+      },
+    })
+  }
+
+  startWaynesRoom() {
+    const { width, height } = this.scale
+    const layout = getLayout(width, height)
+
+    this.sceneState = SCENE_STATE.WAYNES_ROOM
+    this.movementEnabled = true
+    this.target = null
+
+    if (this.backgroundImage) this.backgroundImage.setVisible(false)
+
+    if (this.cache.audio.exists(ASSETS.WAYNES_AUDIO)) {
+      this.waynesMusic = this.sound.add(ASSETS.WAYNES_AUDIO, { loop: true })
+      this.waynesMusic.play()
+    }
+
+    if (this.textures.exists(ASSETS.WAYNES_BG)) {
+      this.waynesBg = this.add.image(width / 2, height / 2, ASSETS.WAYNES_BG).setOrigin(0.5, 0.5)
+      this.waynesBg.setDepth(-100)
+    }
+
+    if (this.textures.exists(ASSETS.CAT_LEFT)) {
+      if (!this.anims.exists('cat_walk_left')) {
+        this.anims.create({
+          key: 'cat_walk_left',
+          frames: this.anims.generateFrameNumbers(ASSETS.CAT_LEFT, {
+            start: ASSETS.CAT_WALK_FRAMES[0],
+            end: ASSETS.CAT_WALK_FRAMES[1],
+          }),
+          frameRate: 5,
+          repeat: -1,
+        })
+      }
+      if (!this.anims.exists('cat_walk_right')) {
+        this.anims.create({
+          key: 'cat_walk_right',
+          frames: this.anims.generateFrameNumbers(ASSETS.CAT_RIGHT, {
+            start: ASSETS.CAT_WALK_FRAMES[0],
+            end: ASSETS.CAT_WALK_FRAMES[1],
+          }),
+          frameRate: 5,
+          repeat: -1,
+        })
+      }
+      this.cat = this.add
+        .sprite(layout.catLeftBound, layout.catY, ASSETS.CAT_RIGHT, 0)
+        .setOrigin(0.5, 1)
+        .setDepth(-50)
+      this.catDirection = 1
+      this.cat.play('cat_walk_right', true)
+    }
+
+    this.clerk.setPosition(width / 2, layout.clerkWalkY)
+    if (this.statusText) this.statusText.setVisible(true).setText('Click on the floor to walk.')
+    if (this.overlayText) this.overlayText.setVisible(false)
+    if (this.introCaptionText) {
+      this.introCaptionText.setVisible(true).setText("Wayne's place.")
+    }
   }
 }
 

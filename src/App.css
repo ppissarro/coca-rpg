@@ -3,11 +3,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000000;
+  background: #050608;
+  overflow: hidden;
 }
 
 .phaser-root {
-  width: 960px;
-  height: 540px;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 320 / 180;
+  min-height: 180px;
+  display: block;
 }
 

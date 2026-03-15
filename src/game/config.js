@@ -6,7 +6,7 @@
 export const GAME_WIDTH = 320
 export const GAME_HEIGHT = 180
 
-/** Scene flow: introIdle → freeWalk → [bibleRead / biblePicked] → biblePause → raid → logo */
+/** Scene flow: introIdle → freeWalk → [bibleRead / biblePicked] → biblePause → raid → logo → intermission → waynesRoom */
 export const SCENE_STATE = {
   INTRO_IDLE: 'introIdle',
   FREE_WALK: 'freeWalk',
@@ -15,6 +15,8 @@ export const SCENE_STATE = {
   BIBLE_PAUSE: 'biblePause',
   RAID: 'raid',
   LOGO: 'logo',
+  INTERMISSION: 'intermission',
+  WAYNES_ROOM: 'waynesRoom',
 }
 
 /** Bible object: inShelf → inspected (optional) → pickedUp */
@@ -41,12 +43,21 @@ export const ASSETS = {
   SWAT_TOP: 'swat_top',
   CLERK_RIGHT: 'clerk_right',
   CLERK_LEFT: 'clerk_left',
+  COCA_INTERMISSION: 'coca_intermission',
+  WAYNES_BG: 'waynes_bg',
+  WAYNES_AUDIO: 'waynes',
+  CAT_LEFT: 'cat_left',
+  CAT_RIGHT: 'cat_right',
   BIBLE: 'bibleSprite',
   // Clerk: 180×66 sheet split into 4 quarters (45×66 per frame)
   CLERK_FRAME_WIDTH: 45,
   CLERK_FRAME_HEIGHT: 66,
   CLERK_IDLE_FRAME: 0,
   CLERK_WALK_FRAMES: [0, 3],
+  // Cat: 180×101, 4 cells (45×101 per frame)
+  CAT_FRAME_WIDTH: 45,
+  CAT_FRAME_HEIGHT: 101,
+  CAT_WALK_FRAMES: [0, 3],
 }
 
 /** Layout positions as functions of (width, height). Use in create() so one place controls all positions. */
@@ -107,5 +118,12 @@ export function getLayout(width, height) {
     scannerY: height - 70,
     scannerSweepMin: height - 90,
     scannerSweepRange: 30,
+
+    // Wayne's room: background scrolls as clerk walks
+    waynesScrollFactor: 0.5,
+    catLeftBound: 30,
+    catRightBound: 120,
+    catY: height - 2,
+    catSpeed: 0.04,
   }
 }
