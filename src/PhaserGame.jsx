@@ -33,9 +33,25 @@ class OfficeScene extends Phaser.Scene {
 
     this.glassesLeft = null
     this.glassesRight = null
+
+    this.tie = null
+    this.pocket = null
+    this.idleTime = 0
+
+    this.usingClerkSprite = false
   }
 
-  preload() {}
+  preload() {
+    // These load from the Vite/Vercel public folder.
+    // Place your art files as:
+    // public/office_bg.png, public/clerk.png, public/bible.png
+    this.load.image('office_bg', 'office_bg.png')
+    this.load.spritesheet('clerk', 'clerk.png', {
+      frameWidth: 32,
+      frameHeight: 47,
+    })
+    this.load.image('bibleSprite', 'bible.png')
+  }
 
   create() {
     const { width, height } = this.scale
@@ -45,21 +61,58 @@ class OfficeScene extends Phaser.Scene {
 
     const g = this.add.graphics()
 
-    // Back wall
-    g.fillStyle(0x171921, 1)
-    g.fillRect(0, 0, width, height - 80)
+    // If an authored background image exists, use it as the room art.
+    if (this.textures.exists('office_bg')) {
+      this.add.image(width / 2, height / 2, 'office_bg').setOrigin(0.5, 0.5)
+    }
+
+    // Back wall – banded to feel grimy and layered
+    g.fillStyle(0x141720, 1)
+    g.fillRect(0, 0, width, height - 90)
+    g.fillStyle(0x191b24, 1)
+    g.fillRect(0, 18, width, height - 102)
+    g.fillStyle(0x10131a, 1)
+    g.fillRect(0, height - 120, width, 24)
+
+    // Distant cubicle hall – minimal, soft hints only
+    g.fillStyle(0x1b1f28, 1)
+    const bandY = 26
+    g.fillRect(0, bandY, width, 10)
+    g.fillStyle(0x20242e, 1)
+    g.fillRect(0, bandY + 10, width, 2)
+
+    // A few tiny "window" slits to imply rows of cubes
+    g.fillStyle(0x252938, 1)
+    const windowY = bandY + 3
+    const windowWidth = 14
+    const windowGap = 26
+    for (let x = 10; x < width - 20; x += windowWidth + windowGap) {
+      g.fillRect(x, windowY, windowWidth, 3)
+      g.fillStyle(0x181b24, 1)
+      g.fillRect(x, windowY + 3, windowWidth, 2)
+      g.fillStyle(0x252938, 1)
+    }
 
     // Floor (2.5D trapezoid)
     g.fillStyle(0x22252a, 1)
-    g.fillPoints(
+    const floorPoints = [
       [
         { x: 10, y: height - 30 },
         { x: width - 10, y: height - 30 },
         { x: width - 50, y: height - 80 },
         { x: 50, y: height - 80 },
       ],
-      true,
-    )
+    ]
+    g.fillPoints(floorPoints[0], true)
+
+    // Floor scuff lines
+    g.lineStyle(1, 0x1a1d22, 0.7)
+    g.beginPath()
+    g.moveTo(40, height - 50)
+    g.lineTo(width / 2 - 20, height - 58)
+    g.moveTo(width / 2 + 10, height - 45)
+    g.lineTo(width - 40, height - 55)
+    g.strokePath()
 
     // Filing cabinet on left
     g.fillStyle(0x30333c, 1)
@@ -67,43 +120,117 @@ class OfficeScene extends Phaser.Scene {
     this.cabinet = this.add.rectangle(33, height - 110, 26, 40, 0x30333c).setOrigin(0.5)
     this.cabinetDrawer = this.add.rectangle(33, height - 118, 22, 14, 0x383b46).setOrigin(0.5)
 
-    // Desk in middle
+    // "ARCHIVES" light above cabinet
+    const archivesText = this.add.text(12, height - 152, 'ARCHIVES', {
+      fontFamily: 'monospace',
+      fontSize: '7px',
+      color: '#ff4040',
+    })
+    archivesText.setAlpha(0.6)
+    this.tweens.add({
+      targets: archivesText,
+      alpha: { from: 0.3, to: 1 },
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+    })
+
+    // Desk in middle – chunkier to read as a focal prop
     g.fillStyle(0x333640, 1)
-    g.fillRect(width / 2 - 30, height - 115, 60, 18)
+    g.fillRect(width / 2 - 36, height - 118, 72, 20)
 
     // Chair behind desk
-    this.chair = this.add.rectangle(width / 2 - 14, height - 102, 14, 14, 0x252831)
+    this.chair = this.add.rectangle(width / 2 - 18, height - 102, 16, 14, 0x252831)
+
+    // CRT monitor on desk
+    g.fillStyle(0x20252d, 1)
+    g.fillRect(width / 2 - 6, height - 126, 18, 12)
+    g.fillStyle(0x0e1117, 1)
+    g.fillRect(width / 2 - 4, height - 124, 14, 8)
+
+    // Coffee mug
+    g.fillStyle(0x444a55, 1)
+    g.fillRect(width / 2 - 18, height - 118, 6, 8)
+
+    // Faint CRT glow cone
+    const crtGlow = this.add.rectangle(width / 2 + 2, height - 120, 34, 22, 0x5fd0ff, 0.05)
+    crtGlow.setOrigin(0.5)
+    this.tweens.add({
+      targets: crtGlow,
+      alpha: { from: 0.03, to: 0.09 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+    })
 
     // Bible shelf on right
     g.fillStyle(0x2b2e36, 1)
     g.fillRect(width - 70, height - 135, 32, 50)
+    g.fillStyle(0x3a3d46, 1)
+    g.fillRect(width - 72, height - 135, 36, 4)
 
-    // CoCA Bible (small red-on-black book)
-    this.bible = this.add.rectangle(width - 54, height - 142, 18, 10, 0x000000)
-    this.bibleLabel = this.add.text(this.bible.x - 14, this.bible.y - 8, '(CoCA)', {
-      fontFamily: 'monospace',
-      fontSize: '7px',
-      color: '#ff3030',
-    })
+    // CoCA Bible (small red-on-black book) – sprite if available, otherwise a rectangle
+    if (this.textures.exists('bibleSprite')) {
+      this.bible = this.add.image(width - 54, height - 142, 'bibleSprite')
+      this.bible.setOrigin(0.5, 0.5)
+      this.bibleLabel = this.add.text(this.bible.x - 16, this.bible.y - 18, '(CoCA)', {
+        fontFamily: 'monospace',
+        fontSize: '7px',
+        color: '#ff3030',
+      })
+    } else {
+      this.bible = this.add.rectangle(width - 54, height - 142, 18, 10, 0x000000)
+      this.bibleLabel = this.add.text(this.bible.x - 14, this.bible.y - 8, '(CoCA)', {
+        fontFamily: 'monospace',
+        fontSize: '7px',
+        color: '#ff3030',
+      })
+    }
 
     // Bible interaction zone
     this.bibleZone = this.add.zone(this.bible.x, this.bible.y, 40, 24)
     this.bibleZone.setOrigin(0.5)
     this.bibleZone.setInteractive({ useHandCursor: true })
 
-    // Dorky clerk sprite (starts "seated" at the desk)
-    this.clerk = this.add.rectangle(width / 2, height - 110, 10, 22, 0xcbd5f5)
-    this.clerkHead = this.add.rectangle(
-      this.clerk.x,
-      this.clerk.y - 16,
-      12,
-      12,
-      0xcbd5f5,
-    )
+    // Dorky clerk character – prefer authored sprite, fall back to rectangles if missing.
+    if (this.textures.exists('clerk')) {
+      this.clerk = this.add.sprite(width / 2, height - 80, 'clerk', 0)
+      // Anchor at feet so he stands on the floor in your background.
+      this.clerk.setOrigin(0.5, 1)
+      this.usingClerkSprite = true
 
-    // Glasses – tiny pixel squares that track with the head
-    this.glassesLeft = this.add.rectangle(this.clerkHead.x - 4, this.clerkHead.y - 1, 4, 4, 0x000000)
-    this.glassesRight = this.add.rectangle(this.clerkHead.x + 4, this.clerkHead.y - 1, 4, 4, 0x000000)
+      if (!this.anims.exists('clerk_idle')) {
+        this.anims.create({
+          key: 'clerk_idle',
+          frames: this.anims.generateFrameNumbers('clerk', { start: 0, end: 1 }),
+          frameRate: 2,
+          repeat: -1,
+        })
+      }
+      if (!this.anims.exists('clerk_walk')) {
+        this.anims.create({
+          key: 'clerk_walk',
+          frames: this.anims.generateFrameNumbers('clerk', { start: 2, end: 3 }),
+          frameRate: 6,
+          repeat: -1,
+        })
+      }
+      this.clerk.play('clerk_idle')
+    } else {
+      // Wide, blocky torso to sell "fat, overly dorky" silhouette
+      this.clerk = this.add.rectangle(width / 2, height - 110, 14, 24, 0xcbd5f5)
+      this.clerkHead = this.add.rectangle(this.clerk.x, this.clerk.y - 18, 14, 14, 0xcbd5f5)
+
+      // Glasses – tiny pixel squares that track with the head
+      this.glassesLeft = this.add.rectangle(this.clerkHead.x - 5, this.clerkHead.y - 1, 4, 4, 0x000000)
+      this.glassesRight = this.add.rectangle(this.clerkHead.x + 5, this.clerkHead.y - 1, 4, 4, 0x000000)
+
+      // Tie and pocket – simple blocks that move with the torso
+      this.tie = this.add.rectangle(this.clerk.x, this.clerk.y + 4, 2, 8, 0xaa2020)
+      this.pocket = this.add.rectangle(this.clerk.x + 3, this.clerk.y - 2, 5, 4, 0x1e2230)
+
+      this.usingClerkSprite = false
+    }
 
     // UI text prompts
     this.statusText = this.add.text(8, height - 22, 'Click to stand up.', {
@@ -154,40 +281,67 @@ class OfficeScene extends Phaser.Scene {
   }
 
   update(_, delta) {
-    if (!this.target || !this.clerk) return
+    if (!this.clerk) return
 
-    const speed = 0.12 * delta
-    const dx = this.target.x - this.clerk.x
-    const dy = this.target.y - this.clerk.y
-    const dist = Math.hypot(dx, dy)
-    if (dist < 1) {
-      // Arrived at destination
-      if (this.walkingToBible && !this.bibleAcquired) {
-        // Snap neatly to the shelf position
-        this.clerk.x = this.bible.x - 8
-        this.clerk.y = this.bible.y + 10
-        this.clerkHead.x = this.clerk.x
-        this.clerkHead.y = this.clerk.y - 16
+    this.idleTime += delta
 
-        this.target = null
-        this.walkingToBible = false
-        this.showBibleMenu()
+    if (this.target) {
+      const speed = 0.12 * delta
+      const dx = this.target.x - this.clerk.x
+      const dy = this.target.y - this.clerk.y
+      const dist = Math.hypot(dx, dy)
+      if (dist < 1) {
+        // Arrived at destination
+        if (this.walkingToBible && !this.bibleAcquired) {
+          // Snap neatly to the shelf position
+          this.clerk.x = this.bible.x - 8
+          this.clerk.y = this.bible.y + 10
+
+          this.target = null
+          this.walkingToBible = false
+          this.showBibleMenu()
+        } else {
+          this.target = null
+        }
       } else {
-        this.target = null
+        this.clerk.x += (dx / dist) * speed
+        this.clerk.y += (dy / dist) * speed
       }
-      return
     }
 
-    this.clerk.x += (dx / dist) * speed
-    this.clerk.y += (dy / dist) * speed
-    this.clerkHead.x = this.clerk.x
-    this.clerkHead.y = this.clerk.y - 16
+    // Idle breathing bob when not walking
+    const bob =
+      !this.target && (this.sceneState === 'introIdle' || this.sceneState === 'freeWalk')
+        ? Math.sin(this.idleTime * 0.005) * 1
+        : 0
 
-    if (this.glassesLeft && this.glassesRight) {
-      this.glassesLeft.x = this.clerkHead.x - 4
-      this.glassesLeft.y = this.clerkHead.y - 1
-      this.glassesRight.x = this.clerkHead.x + 4
-      this.glassesRight.y = this.clerkHead.y - 1
+    if (this.usingClerkSprite) {
+      // Slight idle bob for sprite
+      this.clerk.y = (this.target ? this.clerk.y : this.clerk.y) + bob * 0.05
+
+      // Switch between idle and walk animations
+      if (this.target && this.sceneState === 'freeWalk') {
+        this.clerk.play('clerk_walk', true)
+      } else {
+        this.clerk.play('clerk_idle', true)
+      }
+    } else {
+      this.clerkHead.x = this.clerk.x
+      this.clerkHead.y = this.clerk.y - 18 + bob
+
+      if (this.glassesLeft && this.glassesRight) {
+        this.glassesLeft.x = this.clerkHead.x - 5
+        this.glassesLeft.y = this.clerkHead.y - 1
+        this.glassesRight.x = this.clerkHead.x + 5
+        this.glassesRight.y = this.clerkHead.y - 1
+      }
+
+      if (this.tie && this.pocket) {
+        this.tie.x = this.clerk.x
+        this.tie.y = this.clerk.y + 4
+        this.pocket.x = this.clerk.x + 3
+        this.pocket.y = this.clerk.y - 2
+      }
     }
   }
 
