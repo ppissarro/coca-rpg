@@ -1,0 +1,110 @@
+/**
+ * CoCA RPG – single source of truth for game dimensions, states, assets, and layout.
+ * Change numbers here; the scene reads from this.
+ */
+
+export const GAME_WIDTH = 320
+export const GAME_HEIGHT = 180
+
+/** Scene flow: introIdle → freeWalk → [bibleRead / biblePicked] → biblePause → raid → logo */
+export const SCENE_STATE = {
+  INTRO_IDLE: 'introIdle',
+  FREE_WALK: 'freeWalk',
+  BIBLE_READ: 'bibleRead',
+  BIBLE_PICKED: 'biblePicked',
+  BIBLE_PAUSE: 'biblePause',
+  RAID: 'raid',
+  LOGO: 'logo',
+}
+
+/** Bible object: inShelf → inspected (optional) → pickedUp */
+export const BIBLE_STATE = {
+  IN_SHELF: 'inShelf',
+  INSPECTED: 'inspected',
+  PICKED_UP: 'pickedUp',
+}
+
+/** Asset keys and sprite dimensions. Files live in public/. */
+export const ASSETS = {
+  OFFICE_BG: 'office_bg',
+  OFFICE_BG_NOBIBLE: 'office_bg_nobible',
+  OFFICE_BG_RAID: 'office_bg_raid',
+  OFFICE_AUDIO: 'office_audio',
+  SWIPE_AUDIO: 'swipe',
+  FIND_BIBLE_AUDIO: 'findthatbible',
+  SWAT_CRASH_AUDIO: 'swat_team_crash_in',
+  THIS_ROOM_CLEAR_AUDIO: 'thisroomsclear',
+  PICASSO_AUDIO: 'picasso',
+  SWAT_LEFT: 'swat_left',
+  SWAT_RIGHT: 'swat_right',
+  SWAT_TOP: 'swat_top',
+  CLERK_RIGHT: 'clerk_right',
+  CLERK_LEFT: 'clerk_left',
+  BIBLE: 'bibleSprite',
+  // Clerk: 180×66 sheet split into 4 quarters (45×66 per frame)
+  CLERK_FRAME_WIDTH: 45,
+  CLERK_FRAME_HEIGHT: 66,
+  CLERK_IDLE_FRAME: 0,
+  CLERK_WALK_FRAMES: [0, 3],
+}
+
+/** Layout positions as functions of (width, height). Use in create() so one place controls all positions. */
+export function getLayout(width, height) {
+  return {
+    // Floor: 22% up from bottom → walk line; clerk slightly lower
+    floorY: height * 0.78,
+    floorYMin: height * 0.78 - 20,
+    floorYMax: height * 0.78 + 20,
+
+    // Clerk start / walk line (locked to floor, lower)
+    clerkStartX: width / 2,
+    clerkStartY: height * 0.88,
+    clerkWalkY: height * 0.88,
+    clerkFallbackY: height * 0.88,
+
+    // Bible: invisible button midway down, 28% in from right
+    bibleX: width * (1 - 0.28),
+    bibleY: height * 0.5,
+    bibleStandX: width * (1 - 0.28),
+    bibleStandY: height * 0.88,
+
+    // Bible menu (box sized so "[Read corporate doctrine]" fits)
+    bibleMenuX: width - 148 - 8,
+    bibleMenuY: height - 130,
+    bibleMenuW: 148,
+    bibleMenuH: 44,
+
+    // UI
+    statusTextX: 8,
+    statusTextY: height - 22,
+    introCaptionY: 8,
+    overlayTextY: 10,
+    readTextY: 30,
+
+    // Raid / door
+    doorGlowX: width - 20,
+    doorGlowY: height - 110,
+    lockdownTextX: width - 52,
+    lockdownTextY: height - 150,
+    unitDoorEndX: width - 60,
+    unitDoorY: height - 50,
+    unitVentEndY: height - 125,
+    unitLeftEndX: 40,
+    unitLeftY: height - 50,
+    chairKnockDx: 8,
+    chairKnockDy: 6,
+    drawerOpenDx: -8,
+    commsTextY: height - 60,
+    logoSubtextY: height / 2 + 10,
+
+    // Props (for SWAT sequence)
+    chairX: width / 2 - 18,
+    chairY: height - 102,
+    cabinetDrawerX: 33,
+    cabinetDrawerY: height - 118,
+    paperOriginY: height - 118,
+    scannerY: height - 70,
+    scannerSweepMin: height - 90,
+    scannerSweepRange: 30,
+  }
+}

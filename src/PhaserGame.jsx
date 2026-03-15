@@ -1,16 +1,24 @@
 import { useEffect, useRef } from 'react'
 import Phaser from 'phaser'
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  SCENE_STATE,
+  BIBLE_STATE,
+  ASSETS,
+  getLayout,
+} from './game/config'
 
 class OfficeScene extends Phaser.Scene {
   constructor() {
     super('OfficeScene')
+
     this.clerk = null
     this.clerkHead = null
     this.target = null
     this.bible = null
     this.bibleZone = null
     this.bibleLabel = null
-
     this.statusText = null
     this.overlayText = null
 
@@ -19,8 +27,8 @@ class OfficeScene extends Phaser.Scene {
     this.walkingToBible = false
     this.bibleAcquired = false
 
-    this.sceneState = 'introIdle' // 'introIdle' | 'freeWalk' | 'bibleRead' | 'biblePicked' | 'biblePause' | 'raid' | 'logo'
-    this.bibleState = 'inShelf' // 'inShelf' | 'inspected' | 'pickedUp'
+    this.sceneState = SCENE_STATE.INTRO_IDLE
+    this.bibleState = BIBLE_STATE.IN_SHELF
 
     this.bibleMenuContainer = null
     this.bibleReadText = null
@@ -33,40 +41,67 @@ class OfficeScene extends Phaser.Scene {
 
     this.glassesLeft = null
     this.glassesRight = null
-
     this.tie = null
     this.pocket = null
     this.idleTime = 0
-
     this.usingClerkSprite = false
+    this.facing = 'right'
   }
 
   preload() {
-    // These load from the Vite/Vercel public folder.
-    // Place your art files as:
-    // public/office_bg.png, public/clerk.png, public/bible.png
-    this.load.image('office_bg', 'office_bg.png')
-    this.load.spritesheet('clerk', 'clerk.png', {
-      frameWidth: 32,
-      frameHeight: 47,
+    this.load.image(ASSETS.OFFICE_BG, 'office_bg.png')
+    this.load.image(ASSETS.OFFICE_BG_NOBIBLE, 'office_bg_nobible.png')
+    this.load.image(ASSETS.OFFICE_BG_RAID, 'office_bg_raid.png')
+    this.load.audio(ASSETS.OFFICE_AUDIO, 'office.wav')
+    this.load.audio(ASSETS.SWIPE_AUDIO, 'swipe.wav')
+    this.load.audio(ASSETS.FIND_BIBLE_AUDIO, 'findthatbible.wav')
+    this.load.audio(ASSETS.SWAT_CRASH_AUDIO, 'swat_team_crash_in.wav')
+    this.load.audio(ASSETS.THIS_ROOM_CLEAR_AUDIO, 'thisroomsclear.wav')
+    this.load.audio(ASSETS.PICASSO_AUDIO, 'picasso.wav')
+    this.load.image(ASSETS.SWAT_LEFT, 'swat_left.png')
+    this.load.image(ASSETS.SWAT_RIGHT, 'swat_right.png')
+    this.load.image(ASSETS.SWAT_TOP, 'swat_top.png')
+    this.load.spritesheet(ASSETS.CLERK_RIGHT, 'clerk_right.png', {
+      frameWidth: ASSETS.CLERK_FRAME_WIDTH,
+      frameHeight: ASSETS.CLERK_FRAME_HEIGHT,
     })
-    this.load.image('bibleSprite', 'bible.png')
+    this.load.spritesheet(ASSETS.CLERK_LEFT, 'clerk_left.png', {
+      frameWidth: ASSETS.CLERK_FRAME_WIDTH,
+      frameHeight: ASSETS.CLERK_FRAME_HEIGHT,
+    })
   }
 
   create() {
     const { width, height } = this.scale
+    const layout = getLayout(width, height)
 
-    // Background – dark, low-res office
     this.cameras.main.setBackgroundColor(0x050608)
+
+    this.createRoom(width, height, layout)
+    this.createBible(width, height, layout)
+    this.createClerk(width, height, layout)
+    this.createUI(width, height, layout)
+    this.createInput(width, height, layout)
+
+    if (this.cache.audio.exists(ASSETS.OFFICE_AUDIO)) {
+      this.officeMusic = this.sound.add(ASSETS.OFFICE_AUDIO, { loop: true })
+      this.officeMusic.play()
+    }
+  }
+
+  /**
+   * Room: either a single background image (if available) or full procedural fallback.
+   */
+  createRoom(width, height, layout) {
+    if (this.textures.exists(ASSETS.OFFICE_BG)) {
+      this.backgroundImage = this.add
+        .image(width / 2, height / 2, ASSETS.OFFICE_BG)
+        .setOrigin(0.5, 0.5)
+      return
+    }
 
     const g = this.add.graphics()
 
-    // If an authored background image exists, use it as the room art.
-    if (this.textures.exists('office_bg')) {
-      this.add.image(width / 2, height / 2, 'office_bg').setOrigin(0.5, 0.5)
-    }
-
-    // Back wall – banded to feel grimy and layered
     g.fillStyle(0x141720, 1)
     g.fillRect(0, 0, width, height - 90)
     g.fillStyle(0x191b24, 1)
@@ -74,38 +109,28 @@ class OfficeScene extends Phaser.Scene {
     g.fillStyle(0x10131a, 1)
     g.fillRect(0, height - 120, width, 24)
 
-    // Distant cubicle hall – minimal, soft hints only
     g.fillStyle(0x1b1f28, 1)
-    const bandY = 26
-    g.fillRect(0, bandY, width, 10)
+    g.fillRect(0, 26, width, 10)
     g.fillStyle(0x20242e, 1)
-    g.fillRect(0, bandY + 10, width, 2)
-
-    // A few tiny "window" slits to imply rows of cubes
+    g.fillRect(0, 36, width, 2)
     g.fillStyle(0x252938, 1)
-    const windowY = bandY + 3
-    const windowWidth = 14
-    const windowGap = 26
-    for (let x = 10; x < width - 20; x += windowWidth + windowGap) {
-      g.fillRect(x, windowY, windowWidth, 3)
+    for (let x = 10; x < width - 20; x += 40) {
+      g.fillRect(x, 29, 14, 3)
       g.fillStyle(0x181b24, 1)
-      g.fillRect(x, windowY + 3, windowWidth, 2)
+      g.fillRect(x, 32, 14, 2)
       g.fillStyle(0x252938, 1)
     }
 
-    // Floor (2.5D trapezoid)
     g.fillStyle(0x22252a, 1)
-    const floorPoints = [
+    g.fillPoints(
       [
         { x: 10, y: height - 30 },
         { x: width - 10, y: height - 30 },
         { x: width - 50, y: height - 80 },
         { x: 50, y: height - 80 },
       ],
-    ]
-    g.fillPoints(floorPoints[0], true)
-
-    // Floor scuff lines
+      true,
+    )
     g.lineStyle(1, 0x1a1d22, 0.7)
     g.beginPath()
     g.moveTo(40, height - 50)
@@ -114,168 +139,156 @@ class OfficeScene extends Phaser.Scene {
     g.lineTo(width - 40, height - 55)
     g.strokePath()
 
-    // Filing cabinet on left
     g.fillStyle(0x30333c, 1)
     g.fillRect(20, height - 140, 26, 60)
     this.cabinet = this.add.rectangle(33, height - 110, 26, 40, 0x30333c).setOrigin(0.5)
-    this.cabinetDrawer = this.add.rectangle(33, height - 118, 22, 14, 0x383b46).setOrigin(0.5)
+    this.cabinetDrawer = this.add.rectangle(layout.cabinetDrawerX, layout.cabinetDrawerY, 22, 14, 0x383b46).setOrigin(0.5)
 
-    // "ARCHIVES" light above cabinet
     const archivesText = this.add.text(12, height - 152, 'ARCHIVES', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#ff4040',
     })
     archivesText.setAlpha(0.6)
-    this.tweens.add({
-      targets: archivesText,
-      alpha: { from: 0.3, to: 1 },
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-    })
+    this.tweens.add({ targets: archivesText, alpha: { from: 0.3, to: 1 }, duration: 700, yoyo: true, repeat: -1 })
 
-    // Desk in middle – chunkier to read as a focal prop
     g.fillStyle(0x333640, 1)
     g.fillRect(width / 2 - 36, height - 118, 72, 20)
+    this.chair = this.add.rectangle(layout.chairX, layout.chairY, 16, 14, 0x252831)
 
-    // Chair behind desk
-    this.chair = this.add.rectangle(width / 2 - 18, height - 102, 16, 14, 0x252831)
-
-    // CRT monitor on desk
     g.fillStyle(0x20252d, 1)
     g.fillRect(width / 2 - 6, height - 126, 18, 12)
     g.fillStyle(0x0e1117, 1)
     g.fillRect(width / 2 - 4, height - 124, 14, 8)
-
-    // Coffee mug
     g.fillStyle(0x444a55, 1)
     g.fillRect(width / 2 - 18, height - 118, 6, 8)
+    const crtGlow = this.add.rectangle(width / 2 + 2, height - 120, 34, 22, 0x5fd0ff, 0.05).setOrigin(0.5)
+    this.tweens.add({ targets: crtGlow, alpha: { from: 0.03, to: 0.09 }, duration: 900, yoyo: true, repeat: -1 })
 
-    // Faint CRT glow cone
-    const crtGlow = this.add.rectangle(width / 2 + 2, height - 120, 34, 22, 0x5fd0ff, 0.05)
-    crtGlow.setOrigin(0.5)
-    this.tweens.add({
-      targets: crtGlow,
-      alpha: { from: 0.03, to: 0.09 },
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-    })
-
-    // Bible shelf on right
     g.fillStyle(0x2b2e36, 1)
     g.fillRect(width - 70, height - 135, 32, 50)
     g.fillStyle(0x3a3d46, 1)
     g.fillRect(width - 72, height - 135, 36, 4)
+  }
 
-    // CoCA Bible (small red-on-black book) – sprite if available, otherwise a rectangle
-    if (this.textures.exists('bibleSprite')) {
-      this.bible = this.add.image(width - 54, height - 142, 'bibleSprite')
-      this.bible.setOrigin(0.5, 0.5)
-      this.bibleLabel = this.add.text(this.bible.x - 16, this.bible.y - 18, '(CoCA)', {
-        fontFamily: 'monospace',
-        fontSize: '7px',
-        color: '#ff3030',
-      })
-    } else {
-      this.bible = this.add.rectangle(width - 54, height - 142, 18, 10, 0x000000)
-      this.bibleLabel = this.add.text(this.bible.x - 14, this.bible.y - 8, '(CoCA)', {
-        fontFamily: 'monospace',
-        fontSize: '7px',
-        color: '#ff3030',
-      })
-    }
+  createBible(width, height, layout) {
+    const { bibleX, bibleY } = layout
 
-    // Bible interaction zone
-    this.bibleZone = this.add.zone(this.bible.x, this.bible.y, 40, 24)
-    this.bibleZone.setOrigin(0.5)
-    this.bibleZone.setInteractive({ useHandCursor: true })
+    // Invisible interaction zone exactly over the Bible art in the background.
+    this.bibleZone = this.add
+      .zone(bibleX, bibleY, 40, 24)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+  }
 
-    // Dorky clerk character – prefer authored sprite, fall back to rectangles if missing.
-    if (this.textures.exists('clerk')) {
-      this.clerk = this.add.sprite(width / 2, height - 80, 'clerk', 0)
-      // Anchor at feet so he stands on the floor in your background.
-      this.clerk.setOrigin(0.5, 1)
+  createClerk(width, height, layout) {
+    const { clerkStartX, clerkStartY, clerkFallbackY } = layout
+
+    if (this.textures.exists(ASSETS.CLERK_RIGHT)) {
+      this.clerk = this.add
+        .sprite(clerkStartX, clerkStartY, ASSETS.CLERK_RIGHT, ASSETS.CLERK_IDLE_FRAME)
+        .setOrigin(0.5, 1)
       this.usingClerkSprite = true
 
-      if (!this.anims.exists('clerk_idle')) {
+      // Idle = hold standing frame; walk = cycle frame 0 & 1 (stand + stride)
+      if (!this.anims.exists('clerk_idle_right')) {
         this.anims.create({
-          key: 'clerk_idle',
-          frames: this.anims.generateFrameNumbers('clerk', { start: 0, end: 1 }),
+          key: 'clerk_idle_right',
+          frames: this.anims.generateFrameNumbers(ASSETS.CLERK_RIGHT, {
+            start: ASSETS.CLERK_IDLE_FRAME,
+            end: ASSETS.CLERK_IDLE_FRAME,
+          }),
           frameRate: 2,
           repeat: -1,
         })
       }
-      if (!this.anims.exists('clerk_walk')) {
+      if (!this.anims.exists('clerk_walk_right')) {
         this.anims.create({
-          key: 'clerk_walk',
-          frames: this.anims.generateFrameNumbers('clerk', { start: 2, end: 3 }),
+          key: 'clerk_walk_right',
+          frames: this.anims.generateFrameNumbers(ASSETS.CLERK_RIGHT, {
+            start: ASSETS.CLERK_WALK_FRAMES[0],
+            end: ASSETS.CLERK_WALK_FRAMES[1],
+          }),
           frameRate: 6,
           repeat: -1,
         })
       }
-      this.clerk.play('clerk_idle')
-    } else {
-      // Wide, blocky torso to sell "fat, overly dorky" silhouette
-      this.clerk = this.add.rectangle(width / 2, height - 110, 14, 24, 0xcbd5f5)
-      this.clerkHead = this.add.rectangle(this.clerk.x, this.clerk.y - 18, 14, 14, 0xcbd5f5)
+      if (this.textures.exists(ASSETS.CLERK_LEFT)) {
+        if (!this.anims.exists('clerk_idle_left')) {
+          this.anims.create({
+            key: 'clerk_idle_left',
+            frames: this.anims.generateFrameNumbers(ASSETS.CLERK_LEFT, {
+              start: ASSETS.CLERK_IDLE_FRAME,
+              end: ASSETS.CLERK_IDLE_FRAME,
+            }),
+            frameRate: 2,
+            repeat: -1,
+          })
+        }
+        if (!this.anims.exists('clerk_walk_left')) {
+          this.anims.create({
+            key: 'clerk_walk_left',
+            frames: this.anims.generateFrameNumbers(ASSETS.CLERK_LEFT, {
+              start: ASSETS.CLERK_WALK_FRAMES[0],
+              end: ASSETS.CLERK_WALK_FRAMES[1],
+            }),
+            frameRate: 6,
+            repeat: -1,
+          })
+        }
+      }
 
-      // Glasses – tiny pixel squares that track with the head
+      this.clerk.play('clerk_idle_right')
+    } else {
+      this.clerk = this.add.rectangle(clerkStartX, clerkFallbackY, 14, 24, 0xcbd5f5)
+      this.clerkHead = this.add.rectangle(this.clerk.x, this.clerk.y - 18, 14, 14, 0xcbd5f5)
       this.glassesLeft = this.add.rectangle(this.clerkHead.x - 5, this.clerkHead.y - 1, 4, 4, 0x000000)
       this.glassesRight = this.add.rectangle(this.clerkHead.x + 5, this.clerkHead.y - 1, 4, 4, 0x000000)
-
-      // Tie and pocket – simple blocks that move with the torso
       this.tie = this.add.rectangle(this.clerk.x, this.clerk.y + 4, 2, 8, 0xaa2020)
       this.pocket = this.add.rectangle(this.clerk.x + 3, this.clerk.y - 2, 5, 4, 0x1e2230)
-
       this.usingClerkSprite = false
     }
+  }
 
-    // UI text prompts
-    this.statusText = this.add.text(8, height - 22, 'Click to stand up.', {
+  createUI(width, height, layout) {
+    this.statusText = this.add.text(layout.statusTextX, layout.statusTextY, 'Click to stand up.', {
       fontFamily: 'monospace',
       fontSize: '8px',
       color: '#b0b6d1',
     })
-
-    // Intro caption
-    this.add.text(8, 8, 'Low-Level Legal Processing Unit 14B – Night Shift.', {
+    this.add.text(8, layout.introCaptionY, 'Low-Level Legal Processing Unit 14B – Night Shift.', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#9ea3c4',
       wordWrap: { width: width - 16 },
     })
+  }
 
-    // Click handling
+  createInput(width, height, layout) {
+    const { floorYMin, floorYMax, bibleStandX, bibleStandY, clerkWalkY } = layout
+
     this.input.on('pointerdown', (pointer) => {
-      // Once the Bible is picked up and we are in/after raid, ignore input.
-      if (!this.clerk || this.sceneState === 'raid' || this.sceneState === 'logo') return
+      if (!this.clerk || this.sceneState === SCENE_STATE.RAID || this.sceneState === SCENE_STATE.LOGO) return
 
-      // First click: stand up from the desk.
-      if (this.sceneState === 'introIdle' && this.isSeated && !this.movementEnabled) {
+      if (this.sceneState === SCENE_STATE.INTRO_IDLE && this.isSeated && !this.movementEnabled) {
         this.isSeated = false
         this.movementEnabled = true
-        this.sceneState = 'freeWalk'
-        if (this.statusText) {
-          this.statusText.setText('Click on the floor to walk.')
-        }
+        this.sceneState = SCENE_STATE.FREE_WALK
+        if (this.statusText) this.statusText.setText('Click on the floor to walk.')
         return
       }
 
       if (!this.movementEnabled) return
-
-      // Regular walk click – only if you click roughly on the floor area.
-      if (pointer.y >= height - 90 && pointer.y <= height - 20) {
-        this.target = { x: pointer.x, y: pointer.y }
+      if (pointer.y >= floorYMin && pointer.y <= floorYMax) {
+        // Lock movement to the floor line so the clerk only moves horizontally.
+        this.target = { x: pointer.x, y: clerkWalkY }
         this.walkingToBible = false
       }
     })
 
-    // Bible click – walk to it and prepare for pickup
     this.bibleZone.on('pointerdown', () => {
-      if (!this.movementEnabled || this.bibleAcquired || this.sceneState !== 'freeWalk') return
-      this.target = { x: this.bible.x - 8, y: this.bible.y + 10 }
+      if (!this.movementEnabled || this.bibleAcquired || this.sceneState !== SCENE_STATE.FREE_WALK) return
+      this.target = { x: bibleStandX, y: bibleStandY }
       this.walkingToBible = true
     })
   }
@@ -284,6 +297,8 @@ class OfficeScene extends Phaser.Scene {
     if (!this.clerk) return
 
     this.idleTime += delta
+    const layout = getLayout(this.scale.width, this.scale.height)
+    const { bibleStandX, bibleStandY } = layout
 
     if (this.target) {
       const speed = 0.12 * delta
@@ -291,12 +306,9 @@ class OfficeScene extends Phaser.Scene {
       const dy = this.target.y - this.clerk.y
       const dist = Math.hypot(dx, dy)
       if (dist < 1) {
-        // Arrived at destination
         if (this.walkingToBible && !this.bibleAcquired) {
-          // Snap neatly to the shelf position
-          this.clerk.x = this.bible.x - 8
-          this.clerk.y = this.bible.y + 10
-
+          this.clerk.x = bibleStandX
+          this.clerk.y = bibleStandY
           this.target = null
           this.walkingToBible = false
           this.showBibleMenu()
@@ -306,36 +318,37 @@ class OfficeScene extends Phaser.Scene {
       } else {
         this.clerk.x += (dx / dist) * speed
         this.clerk.y += (dy / dist) * speed
+        if (this.usingClerkSprite) {
+          if (dx < 0) {
+            this.facing = 'left'
+            this.clerk.play('clerk_walk_left', true)
+          } else if (dx > 0) {
+            this.facing = 'right'
+            this.clerk.play('clerk_walk_right', true)
+          }
+        }
       }
     }
 
-    // Idle breathing bob when not walking
     const bob =
-      !this.target && (this.sceneState === 'introIdle' || this.sceneState === 'freeWalk')
+      !this.target && (this.sceneState === SCENE_STATE.INTRO_IDLE || this.sceneState === SCENE_STATE.FREE_WALK)
         ? Math.sin(this.idleTime * 0.005) * 1
         : 0
 
     if (this.usingClerkSprite) {
-      // Slight idle bob for sprite
-      this.clerk.y = (this.target ? this.clerk.y : this.clerk.y) + bob * 0.05
-
-      // Switch between idle and walk animations
-      if (this.target && this.sceneState === 'freeWalk') {
-        this.clerk.play('clerk_walk', true)
-      } else {
-        this.clerk.play('clerk_idle', true)
+      this.clerk.y += bob * 0.05
+      if (!this.target) {
+        this.clerk.play(this.facing === 'left' ? 'clerk_idle_left' : 'clerk_idle_right', true)
       }
     } else {
       this.clerkHead.x = this.clerk.x
       this.clerkHead.y = this.clerk.y - 18 + bob
-
       if (this.glassesLeft && this.glassesRight) {
         this.glassesLeft.x = this.clerkHead.x - 5
         this.glassesLeft.y = this.clerkHead.y - 1
         this.glassesRight.x = this.clerkHead.x + 5
         this.glassesRight.y = this.clerkHead.y - 1
       }
-
       if (this.tie && this.pocket) {
         this.tie.x = this.clerk.x
         this.tie.y = this.clerk.y + 4
@@ -346,51 +359,38 @@ class OfficeScene extends Phaser.Scene {
   }
 
   showBibleMenu() {
-    // Allow menu whenever the Bible is still on the shelf (either fresh or inspected).
-    if (this.sceneState !== 'freeWalk' || this.bibleState === 'pickedUp') return
+    if (this.sceneState !== SCENE_STATE.FREE_WALK || this.bibleState === BIBLE_STATE.PICKED_UP) return
 
     const { width, height } = this.scale
-    this.sceneState = 'bibleRead'
+    const layout = getLayout(width, height)
+    this.sceneState = SCENE_STATE.BIBLE_READ
 
-    // Simple menu box near the shelf
-    const menuWidth = 120
-    const menuHeight = 40
-    const x = width - menuWidth - 8
-    const y = height - 130
-
-    const bg = this.add.rectangle(x, y, menuWidth, menuHeight, 0x050608, 0.95).setOrigin(0, 0)
+    const { bibleMenuX, bibleMenuY, bibleMenuW, bibleMenuH } = layout
+    const bg = this.add.rectangle(bibleMenuX, bibleMenuY, bibleMenuW, bibleMenuH, 0x050608, 0.95).setOrigin(0, 0)
     bg.setStrokeStyle(1, 0xffffff, 0.6)
-
-    const readText = this.add.text(x + 6, y + 6, '[Read corporate doctrine]', {
+    const readText = this.add.text(bibleMenuX + 6, bibleMenuY + 6, '[Read corporate doctrine]', {
       fontFamily: 'monospace',
       fontSize: '8px',
       color: '#d0d5ff',
+      wordWrap: { width: bibleMenuW - 12 },
     })
-    const pickText = this.add.text(x + 6, y + 18, '[Pick up]', {
+    const pickText = this.add.text(bibleMenuX + 6, bibleMenuY + 22, '[Pick up]', {
       fontFamily: 'monospace',
       fontSize: '8px',
       color: '#ff6060',
     })
-
     readText.setInteractive({ useHandCursor: true })
     pickText.setInteractive({ useHandCursor: true })
-
     this.bibleMenuContainer = this.add.container(0, 0, [bg, readText, pickText])
-
-    readText.on('pointerdown', () => {
-      this.handleBibleRead()
-    })
-
-    pickText.on('pointerdown', () => {
-      this.handleBiblePickup()
-    })
+    readText.on('pointerdown', () => this.handleBibleRead())
+    pickText.on('pointerdown', () => this.handleBiblePickup())
   }
 
   handleBibleRead() {
-    if (this.bibleState !== 'inShelf') return
+    if (this.bibleState !== BIBLE_STATE.IN_SHELF) return
 
-    this.bibleState = 'inspected'
-    this.sceneState = 'bibleRead'
+    this.bibleState = BIBLE_STATE.INSPECTED
+    this.sceneState = SCENE_STATE.BIBLE_READ
 
     if (this.bibleMenuContainer) {
       this.bibleMenuContainer.destroy()
@@ -398,10 +398,11 @@ class OfficeScene extends Phaser.Scene {
     }
 
     const { width } = this.scale
+    const layout = getLayout(width, this.scale.height)
     this.bibleReadText = this.add.text(
       width / 2,
-      30,
-      '“Every brand commandment,\n bound in red ink and bad faith.”',
+      layout.readTextY,
+      '"Every brand commandment,\n bound in red ink and bad faith."',
       {
         fontFamily: 'monospace',
         fontSize: '8px',
@@ -413,46 +414,49 @@ class OfficeScene extends Phaser.Scene {
     )
     this.bibleReadText.setOrigin(0.5, 0)
 
-    // Close on click anywhere; return to free walk.
     this.time.delayedCall(150, () => {
       this.input.once('pointerdown', () => {
         if (this.bibleReadText) {
           this.bibleReadText.destroy()
           this.bibleReadText = null
         }
-        this.sceneState = 'freeWalk'
+        this.sceneState = SCENE_STATE.FREE_WALK
       })
     })
   }
 
   handleBiblePickup() {
-    if (this.bibleState === 'pickedUp') return
+    if (this.bibleState === BIBLE_STATE.PICKED_UP) return
 
     const { width } = this.scale
+    const layout = getLayout(width, this.scale.height)
 
     if (this.bibleMenuContainer) {
       this.bibleMenuContainer.destroy()
       this.bibleMenuContainer = null
     }
 
-    // Hide the Bible from the shelf
-    if (this.bible) {
-      this.bible.setVisible(false)
-      this.bible.disableInteractive?.()
-    }
-    if (this.bibleLabel) {
-      this.bibleLabel.setVisible(false)
-    }
-    if (this.bibleZone) {
-      this.bibleZone.disableInteractive()
-    }
+    if (this.bibleZone) this.bibleZone.disableInteractive()
 
     this.bibleAcquired = true
-    this.bibleState = 'pickedUp'
-    this.sceneState = 'biblePicked'
+    this.bibleState = BIBLE_STATE.PICKED_UP
+    this.sceneState = SCENE_STATE.BIBLE_PICKED
 
-    // Small overlay notification
-    this.overlayText = this.add.text(width / 2, 10, 'You acquired the CoCA Bible.', {
+    // Bible disappears the moment they click Pick up
+    if (this.backgroundImage && this.textures.exists(ASSETS.OFFICE_BG_NOBIBLE)) {
+      this.backgroundImage.setTexture(ASSETS.OFFICE_BG_NOBIBLE)
+    }
+
+    if (this.cache.audio.exists(ASSETS.SWIPE_AUDIO)) {
+      this.sound.play(ASSETS.SWIPE_AUDIO)
+    }
+    this.time.delayedCall(500, () => {
+      if (this.cache.audio.exists(ASSETS.FIND_BIBLE_AUDIO)) {
+        this.sound.play(ASSETS.FIND_BIBLE_AUDIO)
+      }
+    })
+
+    this.overlayText = this.add.text(width / 2, layout.overlayTextY, 'You acquired the CoCA Bible.', {
       fontFamily: 'monospace',
       fontSize: '8px',
       color: '#f4f4f4',
@@ -460,71 +464,71 @@ class OfficeScene extends Phaser.Scene {
       padding: { x: 4, y: 2 },
     })
     this.overlayText.setOrigin(0.5, 0)
+    if (this.statusText) this.statusText.setText('')
 
-    if (this.statusText) {
-      this.statusText.setText('')
-    }
-
-    // After 1 second, freeze movement then go into the (placeholder) raid state.
     this.time.delayedCall(1000, () => {
       this.movementEnabled = false
       this.target = null
-      this.sceneState = 'biblePause'
-      this.startRaidSequence()
+      this.sceneState = SCENE_STATE.BIBLE_PAUSE
+
+      // Extra beat before SWAT breaks in
+      this.time.delayedCall(2000, () => {
+        this.startRaidSequence()
+      })
     })
   }
 
   startRaidSequence() {
-    if (this.sceneState !== 'biblePause') return
-    this.sceneState = 'raid'
+    if (this.sceneState !== SCENE_STATE.BIBLE_PAUSE) return
+    this.sceneState = SCENE_STATE.RAID
+
+    // Play SWAT crash-in sound as they enter.
+    if (this.cache.audio.exists(ASSETS.SWAT_CRASH_AUDIO)) {
+      this.sound.play(ASSETS.SWAT_CRASH_AUDIO)
+    }
 
     const { width, height } = this.scale
+    const layout = getLayout(width, height)
+    const tweens = this.tweens
 
-    // Red lockdown door glow
-    const doorGlow = this.add.rectangle(width - 20, height - 110, 20, 40, 0xff0000, 0.5)
-    doorGlow.setOrigin(0.5)
-    this.tweens.add({
-      targets: doorGlow,
-      alpha: { from: 0.2, to: 0.8 },
-      duration: 200,
-      yoyo: true,
-      repeat: 3,
-    })
+    // Swap to raid aftermath background as the military enters.
+    if (this.backgroundImage && this.textures.exists(ASSETS.OFFICE_BG_RAID)) {
+      this.backgroundImage.setTexture(ASSETS.OFFICE_BG_RAID)
+    }
 
-    // Small "LOCKDOWN" text above door
-    const lockdownText = this.add.text(width - 52, height - 150, 'LOCKDOWN', {
+    const doorGlow = this.add.rectangle(layout.doorGlowX, layout.doorGlowY, 20, 40, 0xff0000, 0.5).setOrigin(0.5)
+    tweens.add({ targets: doorGlow, alpha: { from: 0.2, to: 0.8 }, duration: 200, yoyo: true, repeat: 3 })
+
+    const lockdownText = this.add.text(layout.lockdownTextX, layout.lockdownTextY, 'LOCKDOWN', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#ff4040',
     })
 
-    // Spawn buffoonish SWAT silhouettes
-    const makeUnit = (x, y) =>
-      this.add.rectangle(x, y, 14, 28, 0x1a2128).setStrokeStyle(1, 0x000000, 0.9)
-
-    const unitDoor = makeUnit(width + 20, height - 110)
-    const unitVent = makeUnit(width / 2, -20)
-    const unitLeft = makeUnit(-20, height - 105)
-
+    const makeUnit = (x, y, textureKey) => {
+      if (this.textures.exists(textureKey)) {
+        return this.add.image(x, y, textureKey).setOrigin(0.5, 0.5)
+      }
+      return this.add.rectangle(x, y, 14, 28, 0x1a2128).setStrokeStyle(1, 0x000000, 0.9)
+    }
+    const unitDoor = makeUnit(width + 20, layout.unitDoorY, ASSETS.SWAT_RIGHT)
+    const unitVent = makeUnit(width / 2, -20, ASSETS.SWAT_TOP)
+    const unitLeft = makeUnit(-20, layout.unitLeftY, ASSETS.SWAT_LEFT)
     this.swatUnits.push(unitDoor, unitVent, unitLeft)
 
-    const tweens = this.tweens
-
-    // Unit from door: burst in, hit desk area
     tweens.add({
       targets: unitDoor,
-      x: width - 60,
+      x: layout.unitDoorEndX,
       duration: 350,
       delay: 150,
       ease: 'Quad.easeOut',
       onComplete: () => {
-        // Knock the chair sideways
         if (this.chair) {
           tweens.add({
             targets: this.chair,
             angle: 40,
-            x: this.chair.x + 8,
-            y: this.chair.y + 6,
+            x: this.chair.x + layout.chairKnockDx,
+            y: this.chair.y + layout.chairKnockDy,
             duration: 200,
             ease: 'Quad.easeOut',
           })
@@ -532,37 +536,33 @@ class OfficeScene extends Phaser.Scene {
       },
     })
 
-    // Unit from vent: drop down to behind desk
     tweens.add({
       targets: unitVent,
-      y: height - 125,
+      y: layout.unitVentEndY,
       duration: 400,
       delay: 250,
       ease: 'Quad.easeIn',
     })
 
-    // Unit from left: run to cabinet
     tweens.add({
       targets: unitLeft,
-      x: 40,
+      x: layout.unitLeftEndX,
       duration: 400,
       delay: 200,
       ease: 'Quad.easeOut',
       onComplete: () => {
-        // Yank open cabinet drawer and spawn paper sprites
         if (this.cabinetDrawer) {
           tweens.add({
             targets: this.cabinetDrawer,
-            x: this.cabinetDrawer.x - 8,
+            x: this.cabinetDrawer.x + layout.drawerOpenDx,
             duration: 180,
             ease: 'Quad.easeOut',
           })
         }
-
         for (let i = 0; i < 4; i += 1) {
           const paper = this.add.rectangle(
             this.cabinetDrawer ? this.cabinetDrawer.x : 40,
-            this.cabinetDrawer ? this.cabinetDrawer.y : height - 118,
+            layout.paperOriginY,
             6,
             4,
             0xe5e5e5,
@@ -581,9 +581,7 @@ class OfficeScene extends Phaser.Scene {
       },
     })
 
-    // Scanner beam sweeping across room
-    const scanner = this.add.rectangle(width / 2, height - 70, width - 30, 6, 0xff0000, 0.25)
-    scanner.setOrigin(0.5)
+    const scanner = this.add.rectangle(width / 2, layout.scannerY, width - 30, 6, 0xff0000, 0.25).setOrigin(0.5)
     scanner.alpha = 0
     tweens.add({
       targets: scanner,
@@ -593,42 +591,31 @@ class OfficeScene extends Phaser.Scene {
       repeat: 5,
       delay: 400,
       onUpdate: (tween) => {
-        scanner.y = height - 90 + Math.sin(tween.progress * Math.PI) * 30
+        scanner.y = layout.scannerSweepMin + Math.sin(tween.progress * Math.PI) * layout.scannerSweepRange
       },
     })
 
-    // Brief comms dialogue
-    const commsText = this.add.text(8, height - 60, '[Comms]: Asset triggered scripture protocol.', {
+    const commsText = this.add.text(8, layout.commsTextY, '[Comms]: Asset triggered scripture protocol.', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#cbd5ff',
       backgroundColor: '#000000c0',
       padding: { x: 3, y: 2 },
     })
+    this.time.delayedCall(2000, () => commsText.setText('Unit: Negative. No scripture detected.'))
 
-    this.time.delayedCall(2000, () => {
-      commsText.setText('Unit: Negative. No scripture detected.')
-    })
-
-    // Exit after ~4 seconds of chaos
     this.time.delayedCall(4000, () => {
+      if (this.cache.audio.exists(ASSETS.THIS_ROOM_CLEAR_AUDIO)) {
+        this.sound.play(ASSETS.THIS_ROOM_CLEAR_AUDIO)
+      }
       tweens.add({
         targets: [unitDoor, unitVent, unitLeft],
-        x: (target) => {
-          if (target === unitDoor) return width + 30
-          if (target === unitVent) return width / 2
-          return -30
-        },
-        y: (target) => {
-          if (target === unitVent) return -30
-          return target.y
-        },
+        x: (target) => (target === unitDoor ? width + 30 : target === unitVent ? width / 2 : -30),
+        y: (target) => (target === unitVent ? -30 : target.y),
         alpha: { from: 1, to: 0 },
         duration: 400,
         ease: 'Quad.easeIn',
-        onComplete: () => {
-          [unitDoor, unitVent, unitLeft].forEach((u) => u.destroy())
-        },
+        onComplete: () => [unitDoor, unitVent, unitLeft].forEach((u) => u.destroy()),
       })
 
       tweens.add({
@@ -645,33 +632,38 @@ class OfficeScene extends Phaser.Scene {
 
       commsText.destroy()
 
-      // Hold on the quiet post-raid beat a bit longer before revealing the logo.
       this.time.delayedCall(1500, () => {
-        this.sceneState = 'logo'
+        this.sceneState = SCENE_STATE.LOGO
+        const dimmer = this.add.rectangle(width / 2, height / 2, width * 2, height * 2, 0x000000, 0).setOrigin(0.5)
+        tweens.add({ targets: dimmer, alpha: { from: 0, to: 1 }, duration: 1200, ease: 'Quad.easeOut' })
 
-        // Dim the room with a transparent overlay, but keep the logo fully visible on top.
-        const dimmer = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0)
-        dimmer.setOrigin(0.5)
-        this.tweens.add({
-          targets: dimmer,
-          alpha: { from: 0, to: 0.7 },
-          duration: 1200,
-          ease: 'Quad.easeOut',
-        })
+        if (this.officeMusic) {
+          tweens.add({
+            targets: this.officeMusic,
+            volume: { from: 1, to: 0 },
+            duration: 1200,
+            ease: 'Quad.easeOut',
+            onComplete: () => {
+              if (this.officeMusic) this.officeMusic.stop()
+            },
+          })
+        }
+        if (this.cache.audio.exists(ASSETS.PICASSO_AUDIO)) {
+          this.sound.play(ASSETS.PICASSO_AUDIO)
+        }
 
         const logoText = this.add.text(width / 2, height / 2 - 8, 'CoCA', {
           fontFamily: 'monospace',
           fontSize: '20px',
           color: '#ff3030',
         }).setOrigin(0.5)
-
-        const subText = this.add.text(width / 2, height / 2 + 10, 'Corporate Canonical Authority', {
+        const subText = this.add.text(width / 2, layout.logoSubtextY, 'Corporate Canonical Authority', {
           fontFamily: 'monospace',
           fontSize: '8px',
           color: '#f4f4f4',
         }).setOrigin(0.5, 0)
 
-        this.tweens.add({
+        tweens.add({
           targets: [logoText, subText],
           scaleX: { from: 0.8, to: 1 },
           scaleY: { from: 0.8, to: 1 },
@@ -689,8 +681,8 @@ export default function PhaserGame() {
   useEffect(() => {
     const config = {
       type: Phaser.AUTO,
-      width: 320,
-      height: 180,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
       parent: containerRef.current,
       backgroundColor: '#050608',
       pixelArt: true,
@@ -702,11 +694,8 @@ export default function PhaserGame() {
     }
 
     const game = new Phaser.Game(config)
-    return () => {
-      game.destroy(true)
-    }
+    return () => game.destroy(true)
   }, [])
 
   return <div className="phaser-root" ref={containerRef} />
 }
-
