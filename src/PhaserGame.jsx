@@ -46,6 +46,18 @@ class OfficeScene extends Phaser.Scene {
     this.idleTime = 0
     this.usingClerkSprite = false
     this.facing = 'right'
+    this.audioUnlocked = false
+  }
+
+  unlockAudio() {
+    if (this.audioUnlocked) return
+    this.audioUnlocked = true
+    if (this.sound.context && typeof this.sound.context.resume === 'function') {
+      this.sound.context.resume()
+    }
+    if (this.officeMusic && !this.officeMusic.isPlaying) {
+      this.officeMusic.play()
+    }
   }
 
   preload() {
@@ -85,7 +97,7 @@ class OfficeScene extends Phaser.Scene {
 
     if (this.cache.audio.exists(ASSETS.OFFICE_AUDIO)) {
       this.officeMusic = this.sound.add(ASSETS.OFFICE_AUDIO, { loop: true })
-      this.officeMusic.play()
+      // Don't play yet on mobile—browsers block autoplay until first user tap
     }
   }
 
@@ -268,6 +280,8 @@ class OfficeScene extends Phaser.Scene {
     const { floorYMin, floorYMax, bibleStandX, bibleStandY, clerkWalkY } = layout
 
     this.input.on('pointerdown', (pointer) => {
+      this.unlockAudio()
+
       if (!this.clerk || this.sceneState === SCENE_STATE.RAID || this.sceneState === SCENE_STATE.LOGO) return
 
       if (this.sceneState === SCENE_STATE.INTRO_IDLE && this.isSeated && !this.movementEnabled) {
@@ -287,6 +301,7 @@ class OfficeScene extends Phaser.Scene {
     })
 
     this.bibleZone.on('pointerdown', () => {
+      this.unlockAudio()
       if (!this.movementEnabled || this.bibleAcquired || this.sceneState !== SCENE_STATE.FREE_WALK) return
       this.target = { x: bibleStandX, y: bibleStandY }
       this.walkingToBible = true
