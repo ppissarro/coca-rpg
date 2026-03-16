@@ -442,7 +442,6 @@ class OfficeScene extends Phaser.Scene {
     document.addEventListener('keydown', this._rKeyHandler)
     // React App button fires 'triggerRabbithole' event – listen here
     this._rabbitholeListener = () => {
-      console.log('[Phaser] triggerRabbithole received, state:', this.sceneState)
       if (this.sceneState !== SCENE_STATE.RABBITHOLE) {
         this.startRabbitholeSequence()
       }
@@ -457,6 +456,11 @@ class OfficeScene extends Phaser.Scene {
     }
     if (this._rabbitholeListener) {
       window.removeEventListener('triggerRabbithole', this._rabbitholeListener)
+    }
+    if (this._bibleDismissDoc) {
+      document.removeEventListener('click', this._bibleDismissDoc)
+      document.removeEventListener('touchend', this._bibleDismissDoc)
+      this._bibleDismissDoc = null
     }
   }
 
@@ -512,9 +516,10 @@ class OfficeScene extends Phaser.Scene {
     if (this.bibleReadText) return
     this._bibleReadClosing = false
     this.unlockAudio()
-    if (this.cache.audio.exists(ASSETS.EVERYBRAND_AUDIO)) {
-      this.sound.play(ASSETS.EVERYBRAND_AUDIO)
-    }
+    const everybrandSound = this.cache.audio.exists(ASSETS.EVERYBRAND_AUDIO)
+      ? this.sound.add(ASSETS.EVERYBRAND_AUDIO)
+      : null
+    if (everybrandSound) everybrandSound.play()
     const { width } = this.scale
     const layout = getLayout(width, this.scale.height)
     this.bibleReadText = this.add.text(
@@ -532,13 +537,24 @@ class OfficeScene extends Phaser.Scene {
     )
     this.bibleReadText.setOrigin(0.5, 0)
     this.time.delayedCall(150, () => {
-      const timeout = this.time.delayedCall(4000, () => {
-        if (this.bibleReadText) this.onBibleReadClosed(false)
-      })
-      this.input.once('pointerdown', () => {
-        timeout.remove()
+      const close = () => {
+        if (!this.bibleReadText) return
+        timeout?.remove()
+        if (everybrandSound?.isPlaying) everybrandSound.stop()
+        if (this._bibleDismissDoc) {
+          document.removeEventListener('click', this._bibleDismissDoc)
+          document.removeEventListener('touchend', this._bibleDismissDoc)
+          this._bibleDismissDoc = null
+        }
         this.onBibleReadClosed(false)
-      })
+      }
+      const timeout = this.time.delayedCall(25000, close) // Safety fallback if complete never fires
+      if (everybrandSound) {
+        everybrandSound.once('complete', close)
+      } else {
+        this.time.delayedCall(5000, close)
+      }
+      // Fall starts only when everybrand ends (no click-to-skip)
     })
   }
 
@@ -549,14 +565,15 @@ class OfficeScene extends Phaser.Scene {
       this.bibleReadText.destroy()
       this.bibleReadText = null
     }
+    const doStart = () => this.startRabbitholeSequence()
     if (fromShelf) {
-      // Reading from shelf: go straight to rabbithole fall
-      this.time.delayedCall(50, () => this.startRabbitholeSequence())
+      this.time.delayedCall(50, doStart)
+      setTimeout(doStart, 150) // Backup in case Phaser delayedCall misfires
       return
     }
-    // Inventory read: close inventory, then start rabbithole (fall through floor to coca)
     this.hideInventory()
-    this.time.delayedCall(100, () => this.startRabbitholeSequence())
+    this.time.delayedCall(100, doStart)
+    setTimeout(doStart, 200) // Backup
   }
 
   update(_, delta) {
@@ -697,9 +714,10 @@ class OfficeScene extends Phaser.Scene {
     if (this.bibleState !== BIBLE_STATE.IN_SHELF) return
     this._bibleReadClosing = false
 
-    if (this.cache.audio.exists(ASSETS.EVERYBRAND_AUDIO)) {
-      this.sound.play(ASSETS.EVERYBRAND_AUDIO)
-    }
+    const everybrandSound = this.cache.audio.exists(ASSETS.EVERYBRAND_AUDIO)
+      ? this.sound.add(ASSETS.EVERYBRAND_AUDIO)
+      : null
+    if (everybrandSound) everybrandSound.play()
 
     this.bibleState = BIBLE_STATE.INSPECTED
     this.sceneState = SCENE_STATE.BIBLE_READ
@@ -727,18 +745,28 @@ class OfficeScene extends Phaser.Scene {
     this.bibleReadText.setOrigin(0.5, 0)
 
     this.time.delayedCall(150, () => {
-      const timeout = this.time.delayedCall(4000, () => {
-        if (this.bibleReadText) this.onBibleReadClosed(true)
-      })
-      this.input.once('pointerdown', () => {
-        timeout.remove()
+      const close = () => {
+        if (!this.bibleReadText) return
+        timeout?.remove()
+        if (everybrandSound?.isPlaying) everybrandSound.stop()
+        if (this._bibleDismissDoc) {
+          document.removeEventListener('click', this._bibleDismissDoc)
+          document.removeEventListener('touchend', this._bibleDismissDoc)
+          this._bibleDismissDoc = null
+        }
         this.onBibleReadClosed(true)
-      })
+      }
+      const timeout = this.time.delayedCall(25000, close) // Safety fallback if audio complete never fires
+      if (everybrandSound) {
+        everybrandSound.once('complete', close)
+      } else {
+        this.time.delayedCall(5000, close)
+      }
+      // Fall starts only after everybrand.mp3 ends – no tap to skip
     })
   }
 
   startRabbitholeSequence() {
-    console.log('[Rabbithole] Starting sequence, state:', this.sceneState)
     if (this.sceneState === SCENE_STATE.RABBITHOLE && !window.__forceRabbithole) return
     const forceRetry = !!window.__forceRabbithole
     if (window.__forceRabbithole) window.__forceRabbithole = false
@@ -813,16 +841,21 @@ class OfficeScene extends Phaser.Scene {
       const startY = this.clerk.y
       const endY = height + 80
       const duration = layout.fallThroughFloorDuration ?? 2500
+      let overlayStarted = false
+      const startOverlay = () => {
+        if (overlayStarted) return
+        overlayStarted = true
+        this._beginRabbitholeOverlay()
+      }
       this.tweens.add({
         targets: this.clerk,
         y: endY,
         angle: 65,
         duration,
         ease: 'Quad.easeIn',
-        onComplete: () => {
-          this._beginRabbitholeOverlay()
-        },
+        onComplete: startOverlay,
       })
+      setTimeout(startOverlay, duration + 300) // Backup if tween onComplete doesn't fire
       // Sink clerk head/accessories with him
       if (this.clerkHead) {
         this.tweens.add({ targets: this.clerkHead, y: this.clerkHead.y + (endY - startY), duration, ease: 'Quad.easeIn' })
@@ -1304,8 +1337,155 @@ class OfficeScene extends Phaser.Scene {
         .setDepth(10)
     }
 
+    const height = this.scale.height
+
+    const showEndingVideo = () => {
+      if (this.inventoryBtn) this.inventoryBtn.setVisible(false)
+      const cocaEl = window.__cocaAudio
+      if (cocaEl) {
+        cocaEl.currentTime = 0
+        cocaEl.volume = 0.9
+        cocaEl.play().catch(() => {})
+      }
+      let fallbackShown = false
+      const showCocaFallback = () => {
+        if (fallbackShown) return
+        fallbackShown = true
+        if (this.textures.exists(ASSETS.COCA_INTERMISSION)) {
+          const cocaOverlay = this.add
+            .image(width / 2, height / 2, ASSETS.COCA_INTERMISSION)
+            .setOrigin(0.5, 0.5)
+            .setDisplaySize(width, height)
+            .setDepth(500)
+            .setAlpha(0)
+          this.tweens.add({
+            targets: cocaOverlay,
+            alpha: 1,
+            duration: 1800,
+            ease: 'Quad.easeInOut',
+          })
+        }
+      }
+      // Canvas pipeline: video → low-res canvas → scaled display (image-rendering works when canvas is sized via CSS)
+      const overlay = document.createElement('div')
+      overlay.id = 'ending-overlay'
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:2147483647;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden'
+      const PIXEL_W = 288
+      const PIXEL_H = 162
+      const scale = Math.max(
+        window.innerWidth / PIXEL_W,
+        window.innerHeight / PIXEL_H,
+      )
+      const displayW = Math.ceil(PIXEL_W * scale)
+      const displayH = Math.ceil(PIXEL_H * scale)
+      const pixelWrap = document.createElement('div')
+      pixelWrap.style.cssText =
+        `width:${displayW}px;height:${displayH}px;overflow:hidden;display:flex;align-items:center;justify-content:center`
+      const canvas = document.createElement('canvas')
+      canvas.width = PIXEL_W
+      canvas.height = PIXEL_H
+      canvas.style.cssText =
+        `width:${displayW}px;height:${displayH}px;display:block;image-rendering:-webkit-optimize-contrast;image-rendering:pixelated;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges`
+      const ctx = canvas.getContext('2d', { alpha: false })
+      const vid = document.createElement('video')
+      vid.playsInline = true
+      vid.muted = true
+      vid.loop = true
+      vid.style.cssText = 'position:absolute;width:0;height:0;opacity:0;pointer-events:none'
+      let rafId = null
+      const finishEnding = () => {
+        if (!overlay.isConnected) return
+        overlay.style.opacity = '0'
+        overlay.style.transition = 'opacity 1.5s ease'
+        setTimeout(() => {
+          overlay.remove()
+          window.location.reload()
+        }, 1600)
+      }
+      if (cocaEl) {
+        cocaEl.addEventListener('ended', finishEnding, { once: true })
+      } else {
+        setTimeout(finishEnding, 180000) // 3 min fallback if no coca
+      }
+      const drawFrame = () => {
+        if (!overlay.isConnected) {
+          if (rafId) cancelAnimationFrame(rafId)
+          return
+        }
+        if (vid.readyState >= 2) {
+          ctx.fillStyle = '#000'
+          ctx.fillRect(0, 0, PIXEL_W, PIXEL_H)
+          ctx.imageSmoothingEnabled = false
+          const vw = vid.videoWidth
+          const vh = vid.videoHeight
+          if (!vw || !vh) return
+          const cAspect = PIXEL_W / PIXEL_H
+          const vAspect = vw / vh
+          let sx, sy, sw, sh
+          if (vAspect > cAspect) {
+            sh = vh
+            sw = vh * cAspect
+            sx = (vw - sw) / 2
+            sy = 0
+          } else {
+            sw = vw
+            sh = vw / cAspect
+            sx = 0
+            sy = (vh - sh) / 2
+          }
+          ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, PIXEL_W, PIXEL_H)
+        }
+        rafId = requestAnimationFrame(drawFrame)
+      }
+      vid.onerror = () => {
+        if (vid.src.endsWith('.mov') || vid.src.endsWith('.MOV')) {
+          vid.src = '/ending.mp4'
+          vid.load()
+          vid.play().catch(() => {
+            vid.remove()
+            canvas.remove()
+            pixelWrap.remove()
+            overlay.remove()
+            showCocaFallback()
+          })
+        } else {
+          vid.remove()
+          canvas.remove()
+          pixelWrap.remove()
+          overlay.remove()
+          showCocaFallback()
+        }
+      }
+      vid.onended = () => {
+        // drawFrame will detect ended and clean up
+      }
+      pixelWrap.appendChild(canvas)
+      overlay.appendChild(pixelWrap)
+      overlay.appendChild(vid)
+      document.body.appendChild(overlay)
+      // When coca.mp3 ends, fade out and reload the game
+      if (cocaEl) {
+        cocaEl.addEventListener('ended', finishEnding, { once: true })
+      } else {
+        // Fallback: no coca audio – reload after ~4 min (typical coca length)
+        setTimeout(finishEnding, 240000)
+      }
+      vid.src = '/ending.MOV'
+      vid.load()
+      vid.play().then(() => {
+        drawFrame()
+      }).catch(() => {
+        vid.src = '/ending.mp4'
+        vid.load()
+        vid.play().then(() => drawFrame()).catch(() => vid.onerror())
+      })
+      overlay.style.opacity = '0'
+      overlay.style.transition = 'opacity 1.5s ease'
+      setTimeout(() => { overlay.style.opacity = '1' }, 50)
+    }
+
     if (this.cache.audio.exists(ASSETS.PRAY_AUDIO)) {
-      // Lower coca.mp3 while pray plays
       const cocaEl = window.__cocaAudio
       const savedCocaVol = cocaEl ? cocaEl.volume : 0.9
       if (cocaEl) cocaEl.volume = 0.2
@@ -1313,28 +1493,12 @@ class OfficeScene extends Phaser.Scene {
       const praySound = this.sound.add(ASSETS.PRAY_AUDIO)
       praySound.once('complete', () => {
         if (cocaEl) cocaEl.volume = savedCocaVol
+        showEndingVideo()
       })
       praySound.play()
+    } else {
+      this.time.delayedCall(2000, showEndingVideo)
     }
-
-    // After pray sequence, fade in coca.jpeg to fill the screen
-    const height = this.scale.height
-    this.time.delayedCall(1500, () => {
-      if (!this.textures.exists(ASSETS.COCA_INTERMISSION)) return
-      if (this.inventoryBtn) this.inventoryBtn.setVisible(false)
-      const cocaOverlay = this.add
-        .image(width / 2, height / 2, ASSETS.COCA_INTERMISSION)
-        .setOrigin(0.5, 0.5)
-        .setDisplaySize(width, height)
-        .setDepth(500)
-        .setAlpha(0)
-      this.tweens.add({
-        targets: cocaOverlay,
-        alpha: 1,
-        duration: 1800,
-        ease: 'Quad.easeInOut',
-      })
-    })
   }
 
   handleBiblePickup() {
@@ -1810,7 +1974,9 @@ export default function PhaserGame() {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
-      render: { transparent: true },
+      audio: {
+        disableWebAudio: true, // Fixes Chrome loop bug (stops after 2 loops)
+      },
       scene: OfficeScene,
     }
 
