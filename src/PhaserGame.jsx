@@ -1257,6 +1257,7 @@ class OfficeScene extends Phaser.Scene {
     this.sceneState = SCENE_STATE.COCA_LANDED
     this.movementEnabled = true
     this.target = null
+    if (this.inventoryBtn) this.inventoryBtn.setVisible(false)
     if (this.statusText) this.statusText.setVisible(true).setText('Click on the floor to walk.')
 
     // Invisible pray button at center of coca_bg (DOM overlay for reliable clicks)
