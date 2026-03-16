@@ -59,14 +59,18 @@ export const ASSETS = {
   PRAY: 'pray',
   PRAY_AUDIO: 'pray_audio',
   RABBITHOLE_VIDEO: 'rabbithole',
+  SHRUG: 'shrug',
   // Clerk: 180×66 sheet split into 4 quarters (45×66 per frame)
   CLERK_FRAME_WIDTH: 45,
   CLERK_FRAME_HEIGHT: 66,
   CLERK_IDLE_FRAME: 0,
   CLERK_WALK_FRAMES: [0, 3],
+  // Shrug: 118×66, 4 cells in a row (29×66 per frame)
+  SHRUG_FRAME_WIDTH: 29,
+  SHRUG_FRAME_HEIGHT: 66,
   // Cat: 180×101, 4 cells (45×101 per frame)
   CAT_FRAME_WIDTH: 45,
-  CAT_FRAME_HEIGHT: 101,
+  CAT_FRAME_HEIGHT: 100,
   CAT_WALK_FRAMES: [0, 3],
 }
 
@@ -135,6 +139,8 @@ export function getLayout(width, height) {
 
     // Wayne's room: background scrolls as clerk walks
     waynesScrollFactor: 0.5,
+    waynesClerkLeftBound: 10,
+    waynesClerkRightBound: width - 10,
     catLeftBound: 30,
     catRightBound: 120,
     catY: height - 2,

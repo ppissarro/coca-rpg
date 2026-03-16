@@ -137,6 +137,10 @@ class OfficeScene extends Phaser.Scene {
     this.load.image(ASSETS.COCA_BG, 'coca_bg.jpg')
     this.load.image(ASSETS.PRAY, 'pray.png')
     this.load.audio(ASSETS.PRAY_AUDIO, 'pray.mp3')
+    this.load.spritesheet(ASSETS.SHRUG, 'shrug.png', {
+      frameWidth: ASSETS.SHRUG_FRAME_WIDTH,
+      frameHeight: ASSETS.SHRUG_FRAME_HEIGHT,
+    })
     this.load.video(ASSETS.RABBITHOLE_VIDEO, 'rabbithole.mp4', true)
   }
 
@@ -166,6 +170,7 @@ class OfficeScene extends Phaser.Scene {
     this.createUI(width, height, layout)
     this.createInput(width, height, layout)
     this.createInventoryKey()
+    this.createShrugAnim()
 
     if (this.cache.audio.exists(ASSETS.OFFICE_AUDIO)) {
       this.officeMusic = this.sound.add(ASSETS.OFFICE_AUDIO, { loop: true })
@@ -327,7 +332,9 @@ class OfficeScene extends Phaser.Scene {
       }
 
       this.clerk.play('clerk_idle_right')
-    } else {
+    }
+
+    if (!this.textures.exists(ASSETS.CLERK_RIGHT)) {
       this.clerk = this.add.rectangle(clerkStartX, clerkFallbackY, 14, 24, 0xcbd5f5)
       this.clerkHead = this.add.rectangle(this.clerk.x, this.clerk.y - 18, 14, 14, 0xcbd5f5)
       this.glassesLeft = this.add.rectangle(this.clerkHead.x - 5, this.clerkHead.y - 1, 4, 4, 0x000000)
@@ -343,13 +350,13 @@ class OfficeScene extends Phaser.Scene {
       fontFamily: 'monospace',
       fontSize: '8px',
       color: '#b0b6d1',
-    })
+    }).setDepth(100)
     this.introCaptionText = this.add.text(8, layout.introCaptionY, 'Low-Level Legal Processing Unit 14B – Night Shift.', {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#9ea3c4',
       wordWrap: { width: width - 16 },
-    })
+    }).setDepth(100)
     const { inventoryBtnX, inventoryBtnY, inventoryBtnW, inventoryBtnH } = layout
     const invBg = this.add
       .rectangle(0, 0, inventoryBtnW, inventoryBtnH, 0x0a1628, 0.95)
@@ -386,11 +393,16 @@ class OfficeScene extends Phaser.Scene {
       if (!this.movementEnabled && this.sceneState !== SCENE_STATE.WAYNES_ROOM && this.sceneState !== SCENE_STATE.COCA_LANDED) return
 
       const isCoca = this.sceneState === SCENE_STATE.COCA_LANDED
+      const isWaynes = this.sceneState === SCENE_STATE.WAYNES_ROOM
       const floorMin = isCoca ? cocaFloorYMin : floorYMin
       const floorMax = isCoca ? cocaFloorYMax : floorYMax
       const walkY = isCoca ? cocaWalkY : clerkWalkY
       if (pointer.y >= floorMin && pointer.y <= floorMax) {
-        this.target = { x: pointer.x, y: walkY }
+        let targetX = pointer.x
+        if (isWaynes && layout.waynesClerkLeftBound != null && layout.waynesClerkRightBound != null) {
+          targetX = Phaser.Math.Clamp(pointer.x, layout.waynesClerkLeftBound, layout.waynesClerkRightBound)
+        }
+        this.target = { x: targetX, y: walkY }
         this.walkingToBible = false
       }
     })
@@ -400,6 +412,16 @@ class OfficeScene extends Phaser.Scene {
       if (!this.movementEnabled || this.bibleAcquired || this.sceneState !== SCENE_STATE.FREE_WALK) return
       this.target = { x: bibleStandX, y: bibleStandY }
       this.walkingToBible = true
+    })
+  }
+
+  createShrugAnim() {
+    if (!this.textures.exists(ASSETS.SHRUG) || this.anims.exists('shrug')) return
+    this.anims.create({
+      key: 'shrug',
+      frames: this.anims.generateFrameNumbers(ASSETS.SHRUG, { start: 0, end: 3 }),
+      frameRate: 2, // 1 frame per 0.5 seconds
+      repeat: 0,
     })
   }
 
@@ -554,7 +576,7 @@ class OfficeScene extends Phaser.Scene {
 
     if (this.target) {
       const speed = 0.12 * delta
-      const dx = this.target.x - this.clerk.x
+      let dx = this.target.x - this.clerk.x
       const dy = this.target.y - this.clerk.y
       const dist = Math.hypot(dx, dy)
       if (dist < 1) {
@@ -570,6 +592,9 @@ class OfficeScene extends Phaser.Scene {
       } else {
         this.clerk.x += (dx / dist) * speed
         this.clerk.y += (dy / dist) * speed
+        if (this.sceneState === SCENE_STATE.WAYNES_ROOM && layout.waynesClerkLeftBound != null && layout.waynesClerkRightBound != null) {
+          this.clerk.x = Phaser.Math.Clamp(this.clerk.x, layout.waynesClerkLeftBound, layout.waynesClerkRightBound)
+        }
         if (this.usingClerkSprite) {
           if (dx < 0) {
             this.facing = 'left'
@@ -583,6 +608,10 @@ class OfficeScene extends Phaser.Scene {
     }
 
     if (this.sceneState === SCENE_STATE.WAYNES_ROOM) {
+      const { waynesClerkLeftBound, waynesClerkRightBound } = layout
+      if (waynesClerkLeftBound != null && waynesClerkRightBound != null) {
+        this.clerk.x = Phaser.Math.Clamp(this.clerk.x, waynesClerkLeftBound, waynesClerkRightBound)
+      }
       if (this.waynesBg) {
         const w = this.scale.width
         const { waynesScrollFactor } = layout
@@ -1491,41 +1520,43 @@ class OfficeScene extends Phaser.Scene {
       if (this.cache.audio.exists(ASSETS.THIS_ROOM_CLEAR_AUDIO)) {
         this.sound.play(ASSETS.THIS_ROOM_CLEAR_AUDIO)
       }
-      tweens.add({
-        targets: [unitDoor, unitVent, unitLeft],
-        x: (target) => (target === unitDoor ? width + 30 : target === unitVent ? width / 2 : -30),
-        y: (target) => (target === unitVent ? -30 : target.y),
-        alpha: { from: 1, to: 0 },
-        duration: 400,
-        ease: 'Quad.easeIn',
-        onComplete: () => [unitDoor, unitVent, unitLeft].forEach((u) => u.destroy()),
-      })
-
-      tweens.add({
-        targets: [doorGlow, scanner, lockdownText],
-        alpha: { from: 1, to: 0 },
-        duration: 300,
-        ease: 'Quad.easeOut',
-        onComplete: () => {
+      // Pause before SWAT leave, then they exit, then pause before shrug
+      this.time.delayedCall(1200, () => {
+        tweens.add({
+          targets: [unitDoor, unitVent, unitLeft],
+          x: (target) => (target === unitDoor ? width + 30 : target === unitVent ? width / 2 : -30),
+          y: (target) => (target === unitVent ? -30 : target.y),
+          alpha: { from: 1, to: 0 },
+          duration: 400,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            [unitDoor, unitVent, unitLeft].forEach((u) => u.destroy())
+            // Pause after SWAT leave, then fade UI and start shrug
+            this.time.delayedCall(400, () => {
+              tweens.add({
+                targets: [doorGlow, scanner, lockdownText],
+                alpha: { from: 1, to: 0 },
+                duration: 300,
+                ease: 'Quad.easeOut',
+                onComplete: () => {
           doorGlow.destroy()
           scanner.destroy()
           lockdownText.destroy()
-        },
-      })
 
-      commsText.destroy()
-
-      this.time.delayedCall(1500, () => {
-        this.sceneState = SCENE_STATE.LOGO
+          const doLogoTransition = () => {
+            this.sceneState = SCENE_STATE.LOGO
         if (this.backgroundImage) this.backgroundImage.setVisible(false)
         if (this.overlayText) this.overlayText.setVisible(false)
         if (this.introCaptionText) this.introCaptionText.setVisible(false)
-        // Remove SWAT artifacts (paper sprites, etc.) before fade so they don't show through
         if (this.paperSprites?.length) {
           this.paperSprites.forEach((p) => p.destroy())
           this.paperSprites = []
         }
-        const dimmer = this.add.rectangle(width / 2, height / 2, width * 2, height * 2, 0x000000, 0).setOrigin(0.5)
+        const dimmer = this.add
+          .rectangle(width / 2, height / 2, width * 2, height * 2, 0x000000, 0)
+          .setOrigin(0.5)
+          .setDepth(4000)
+        this._raidDimmer = dimmer
         tweens.add({ targets: dimmer, alpha: { from: 0, to: 1 }, duration: 1200, ease: 'Quad.easeOut' })
 
         if (this.officeMusic) {
@@ -1564,7 +1595,51 @@ class OfficeScene extends Phaser.Scene {
         })
 
         this.time.delayedCall(3500, () => this.playIntermissionThenWaynesRoom(dimmer, logoText, subText))
+          }
+
+          if (this.textures.exists(ASSETS.SHRUG) && this.clerk) {
+            const clerkX = this.clerk.x
+            const clerkY = this.clerk.y
+            this.clerk.setVisible(false)
+            if (this.clerkHead) this.clerkHead.setVisible(false)
+            if (this.glassesLeft) this.glassesLeft.setVisible(false)
+            if (this.glassesRight) this.glassesRight.setVisible(false)
+            if (this.tie) this.tie.setVisible(false)
+            if (this.pocket) this.pocket.setVisible(false)
+            // Uniform scale: preserve shrug aspect (29:66), match clerk width → height scales proportionally
+            const scale = ASSETS.CLERK_FRAME_WIDTH / ASSETS.SHRUG_FRAME_WIDTH
+            const dispW = ASSETS.CLERK_FRAME_WIDTH
+            const dispH = Math.round(ASSETS.SHRUG_FRAME_HEIGHT * scale)
+            const shrug = this.add
+              .sprite(clerkX, clerkY, ASSETS.SHRUG, 0)
+              .setOrigin(0.5, 1)
+              .setDisplaySize(dispW, dispH)
+              .setDepth(100)
+            shrug.play('shrug')
+            shrug.once('animationcomplete', () => {
+              this.time.delayedCall(2000, () => {
+                this.tweens.add({
+                  targets: shrug,
+                  alpha: 0,
+                  duration: 400,
+                  ease: 'Quad.easeOut',
+                  onComplete: () => {
+                    shrug.destroy()
+                    this.time.delayedCall(600, doLogoTransition)
+                  },
+                })
+              })
+            })
+          } else {
+            this.time.delayedCall(1500, doLogoTransition)
+          }
+        },
       })
+      })
+      }})
+      })
+
+      commsText.destroy()
     })
   }
 
@@ -1578,6 +1653,10 @@ class OfficeScene extends Phaser.Scene {
     if (subText) subText.setVisible(false)
 
     if (!this.textures.exists(ASSETS.COCA_INTERMISSION)) {
+      if (dimmer) {
+        dimmer.destroy()
+        this._raidDimmer = null
+      }
       this.startWaynesRoom()
       return
     }
@@ -1602,7 +1681,10 @@ class OfficeScene extends Phaser.Scene {
             ease: 'Quad.easeIn',
             onComplete: () => {
               coca.destroy()
-              if (dimmer) dimmer.destroy()
+              if (dimmer) {
+                dimmer.destroy()
+                this._raidDimmer = null
+              }
               if (this.picassoSound) {
                 tweens.add({
                   targets: this.picassoSound,
@@ -1628,9 +1710,25 @@ class OfficeScene extends Phaser.Scene {
     const { width, height } = this.scale
     const layout = getLayout(width, height)
 
+    // Ensure black dimmer from logo transition is destroyed (covers screen otherwise)
+    if (this._raidDimmer) {
+      this._raidDimmer.destroy()
+      this._raidDimmer = null
+    }
+
     this.sceneState = SCENE_STATE.WAYNES_ROOM
     this.movementEnabled = true
     this.target = null
+
+    if (this.clerk) {
+      this.clerk.setVisible(true)
+      this.clerk.setDepth(10)
+    }
+    if (this.clerkHead) this.clerkHead.setVisible(true)
+    if (this.glassesLeft) this.glassesLeft.setVisible(true)
+    if (this.glassesRight) this.glassesRight.setVisible(true)
+    if (this.tie) this.tie.setVisible(true)
+    if (this.pocket) this.pocket.setVisible(true)
 
     if (this.backgroundImage) this.backgroundImage.setVisible(false)
 
@@ -1640,8 +1738,20 @@ class OfficeScene extends Phaser.Scene {
     }
 
     if (this.textures.exists(ASSETS.WAYNES_BG)) {
-      this.waynesBg = this.add.image(width / 2, height / 2, ASSETS.WAYNES_BG).setOrigin(0.5, 0.5)
-      this.waynesBg.setDepth(-100)
+      const waynesImg = this.textures.get(ASSETS.WAYNES_BG).getSourceImage()
+      const imgW = waynesImg ? waynesImg.width : 487
+      const imgH = waynesImg ? waynesImg.height : 179
+      const scale = Math.max(width / imgW, height / imgH)
+      this.waynesBg = this.add
+        .image(width / 2, height / 2, ASSETS.WAYNES_BG)
+        .setOrigin(0.5, 0.5)
+        .setDisplaySize(Math.ceil(imgW * scale), Math.ceil(imgH * scale))
+        .setDepth(0)
+    } else {
+      // Fallback if waynes_bg failed to load
+      this.waynesBg = this.add
+        .rectangle(width / 2, height / 2, width, height, 0x1a1d24)
+        .setDepth(0)
     }
 
     if (this.textures.exists(ASSETS.CAT_LEFT)) {
@@ -1670,7 +1780,7 @@ class OfficeScene extends Phaser.Scene {
       this.cat = this.add
         .sprite(layout.catLeftBound, layout.catY, ASSETS.CAT_RIGHT, 0)
         .setOrigin(0.5, 1)
-        .setDepth(-50)
+        .setDepth(5)
       this.catDirection = 1
       this.cat.play('cat_walk_right', true)
     }

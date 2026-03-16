@@ -153,7 +153,8 @@ export function showRabbitholeOverlay({ canvas, layout, phaserRoot, scene }) {
     const durationSec = (video.duration && !isNaN(video.duration)) ? video.duration : fallbackDurationMs / 1000
     const elapsedSec = phase === 'video' ? (video.currentTime || 0) : 0
     const endY = cbHeight + 80
-    const floorY = cbHeight * 0.9
+    // Match Phaser cocaLandedClerkY; clerk uses bottom origin so feet go here
+    const floorY = cbHeight * 0.94
 
     if (phase === 'video') {
       const p = Math.min(1, elapsedSec / durationSec)
@@ -193,26 +194,27 @@ export function showRabbitholeOverlay({ canvas, layout, phaserRoot, scene }) {
       const fallInDur = 1200
       const p = Math.min(1, phaseElapsed / fallInDur)
       const fallStartY = -80
-      const y = fallStartY + (floorY - fallStartY) * p
+      const landW = Math.round(cbWidth * (45 / 320))
+      const landH = Math.round(landW * (66 / 45))
+      const landY = floorY - landH
+      const y = fallStartY + (landY - fallStartY) * p
       const tilt = -75 + 75 * p
+      clerkWrap.style.width = landW + 'px'
+      clerkWrap.style.height = landH + 'px'
       clerkWrap.style.top = y + 'px'
-      clerkWrap.style.transform = `translate(-50%, -50%) rotate(${tilt}deg)`
+      clerkWrap.style.transform = `translate(-50%, 0) rotate(${tilt}deg)`
       if (p < 1) {
         const showL = Math.floor(phaseElapsed / 250) % 2 === 0
         freefallLeft.style.display = showL ? 'block' : 'none'
         freefallRight.style.display = showL ? 'none' : 'block'
         clerkLanded.style.display = 'none'
       } else {
-        // Landed: apply correct size from contentBox, instantly show clerk_right standing
-        const landW = Math.max(80, Math.round(cbWidth * 0.28))
-        const landH = Math.round(landW * (112 / 200))
-        clerkWrap.style.width = landW + 'px'
-        clerkWrap.style.height = landH + 'px'
+        // Landed: Phaser clerk uses origin (0.5,1) = feet at Y; overlay top = floorY - landH so feet at floorY
         freefallLeft.style.display = 'none'
         freefallRight.style.display = 'none'
         clerkLanded.style.display = 'block'
-        clerkWrap.style.top = floorY + 'px'
-        clerkWrap.style.transform = 'translate(-50%, -50%) rotate(0deg)'
+        clerkWrap.style.top = landY + 'px'
+        clerkWrap.style.transform = 'translate(-50%, 0) rotate(0deg)'
         const holdMs = 1500
         if (phaseElapsed - fallInDur >= holdMs) {
           tickActive = false
