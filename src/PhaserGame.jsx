@@ -376,9 +376,11 @@ class OfficeScene extends Phaser.Scene {
       .setDepth(5000)
     this.inventoryBtn.on('pointerdown', () => {
       this.unlockAudio()
+      if (this.sceneState !== SCENE_STATE.WAYNES_ROOM) return
       if (this.inventoryOpen) this.hideInventory()
       else this.showInventory()
     })
+    this.inventoryBtn.setVisible(false) // Only shown in Wayne's room
   }
 
   createInput(width, height, layout) {
@@ -427,6 +429,7 @@ class OfficeScene extends Phaser.Scene {
 
   createInventoryKey() {
     this.input.keyboard.on('keydown-I', () => {
+      if (this.sceneState !== SCENE_STATE.WAYNES_ROOM) return
       if (this.inventoryOpen) this.hideInventory()
       else this.showInventory()
     })
@@ -465,6 +468,7 @@ class OfficeScene extends Phaser.Scene {
   }
 
   showInventory() {
+    if (this.sceneState !== SCENE_STATE.WAYNES_ROOM) return
     if (this.inventoryContainer) return
     this.inventoryOpen = true
     const { width, height } = this.scale
@@ -491,7 +495,25 @@ class OfficeScene extends Phaser.Scene {
       bibleImg.setScale(2)
       bibleImg.setInteractive({ useHandCursor: true })
       bibleImg.on('pointerdown', () => this.showReadFromInventory())
-      children.push(bibleImg)
+      const tooltip = this.add.text(0, 0, 'CoCA Bible', {
+        fontFamily: 'monospace',
+        fontSize: '7px',
+        color: '#d0d5ff',
+        backgroundColor: '#0a1628',
+        padding: { x: 4, y: 2 },
+      }).setOrigin(0, 1).setDepth(7000).setVisible(false)
+      const onMove = (pointer) => {
+        tooltip.setPosition(pointer.x + 8, pointer.y - 8)
+      }
+      bibleImg.on('pointerover', () => {
+        tooltip.setVisible(true)
+        this.input.on('pointermove', onMove)
+      })
+      bibleImg.on('pointerout', () => {
+        tooltip.setVisible(false)
+        this.input.off('pointermove', onMove)
+      })
+      children.push(bibleImg, tooltip)
     } else {
       const emptyText = this.add.text(x + 8, y + 32, '(empty)', {
         fontFamily: 'monospace',
@@ -1951,6 +1973,7 @@ class OfficeScene extends Phaser.Scene {
     }
 
     this.clerk.setPosition(width / 2, layout.clerkWalkY)
+    if (this.inventoryBtn) this.inventoryBtn.setVisible(true)
     if (this.statusText) this.statusText.setVisible(true).setText('Click on the floor to walk.')
     if (this.overlayText) this.overlayText.setVisible(false)
     if (this.introCaptionText) {
