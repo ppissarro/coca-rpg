@@ -1,16 +1,14 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
+/**
+ * Loads first – exposes __showRabbitholeStandalone for standalone overlay (e.g. before Phaser/create).
+ */
 import { showRabbitholeOverlay } from './rabbitholeOverlay'
 import { getLayout } from './game/config'
 
-// Standalone overlay – works even before Phaser create() runs (Test button can call this)
 window.__showRabbitholeStandalone = () => {
   const canvas = document.querySelector('canvas')
   const phaserRoot = canvas?.closest('.phaser-root')
-  const w = window.innerWidth || 960
-  const h = window.innerHeight || 540
+  const w = typeof window !== 'undefined' ? window.innerWidth : 960
+  const h = typeof window !== 'undefined' ? window.innerHeight : 540
   const layout = getLayout(w, h)
   const scene = {
     rabbitholeVideoWrapper: null,
@@ -18,9 +16,3 @@ window.__showRabbitholeStandalone = () => {
   }
   showRabbitholeOverlay({ canvas, layout, phaserRoot, scene })
 }
-
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)

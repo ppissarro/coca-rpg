@@ -8,10 +8,16 @@
 }
 
 .phaser-root {
+  position: relative;
   width: 100%;
   max-width: 960px;
   aspect-ratio: 320 / 180;
   min-height: 180px;
   display: block;
+}
+
+.phaser-root canvas {
+  position: relative;
+  z-index: 1;
 }
 

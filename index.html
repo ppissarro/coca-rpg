@@ -8,6 +8,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="rabbithole-video-wrap" style="position:fixed;inset:0;overflow:hidden;z-index:2147483645;display:none;background:#000">
+      <div id="rabbithole-video-scroll" style="position:absolute;top:0;left:0;width:100%;height:300%">
+        <video id="rabbithole-video-el" src="/rabbithole.mp4" muted loop playsinline preload="auto"
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"></video>
+      </div>
+    </div>
+    <div id="rabbithole-overlay" style="position:fixed;inset:0;z-index:2147483646;display:none;overflow:hidden;pointer-events:auto;background:#000" aria-hidden="true"></div>
+    <script type="module" src="/src/rabbitholeBoot.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

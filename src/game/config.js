@@ -17,6 +17,8 @@ export const SCENE_STATE = {
   LOGO: 'logo',
   INTERMISSION: 'intermission',
   WAYNES_ROOM: 'waynesRoom',
+  RABBITHOLE: 'rabbithole',
+  COCA_LANDED: 'cocaLanded',
 }
 
 /** Bible object: inShelf → inspected (optional) → pickedUp */
@@ -49,6 +51,14 @@ export const ASSETS = {
   CAT_LEFT: 'cat_left',
   CAT_RIGHT: 'cat_right',
   BIBLE: 'bibleSprite',
+  FREEFALL_LEFT: 'freefall_left',
+  FREEFALL_RIGHT: 'freefall_right',
+  FREEFALL_LOOP_AUDIO: 'freefall_loop',
+  COCA_LAND_AUDIO: 'coca_land',
+  COCA_BG: 'coca_bg',
+  PRAY: 'pray',
+  PRAY_AUDIO: 'pray_audio',
+  RABBITHOLE_VIDEO: 'rabbithole',
   // Clerk: 180×66 sheet split into 4 quarters (45×66 per frame)
   CLERK_FRAME_WIDTH: 45,
   CLERK_FRAME_HEIGHT: 66,
@@ -89,6 +99,10 @@ export function getLayout(width, height) {
     // UI
     statusTextX: 8,
     statusTextY: height - 22,
+    inventoryBtnX: width - 76,
+    inventoryBtnY: 8,
+    inventoryBtnW: 68,
+    inventoryBtnH: 20,
     introCaptionY: 8,
     overlayTextY: 10,
     readTextY: 30,
@@ -125,5 +139,25 @@ export function getLayout(width, height) {
     catRightBound: 120,
     catY: height - 2,
     catSpeed: 0.04,
+
+    // Stage 1: clerk slowly sinks through floor of current room (ms)
+    fallThroughFloorDuration: 2500,
+    // Stage 2: freefall through rabbithole.mp4 (ms) – slower pan
+    rabbitholeFallDuration: 9000,
+    rabbitholeFallStartY: -80,
+    rabbitholeFallEndY: height + 60,
+    // Landed on coca_bg (higher value = lower on screen)
+    cocaLandedClerkY: height * 0.94,
+    cocaWalkY: height * 0.94,
+    cocaFloorYMin: height * 0.85,
+    cocaFloorYMax: height + 10,
+    // Pray: invisible zone at center of coca_bg
+    prayZoneX: width / 2,
+    prayZoneY: height / 2,
+    prayZoneW: 100,
+    prayZoneH: 80,
+    prayMenuW: 80,
+    prayMenuH: 24,
   }
 }
+
