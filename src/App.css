@@ -25,3 +25,13 @@
   z-index: 1;
 }
 
+/* Pixelated UI – no anti-aliasing, crisp retro look */
+.pixelated-ui,
+.pixelated-ui * {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+}
+

@@ -17,8 +17,11 @@ export const SCENE_STATE = {
   LOGO: 'logo',
   INTERMISSION: 'intermission',
   WAYNES_ROOM: 'waynesRoom',
+  EXECUTIVE_SUITE: 'executiveSuite',
   RABBITHOLE: 'rabbithole',
   COCA_LANDED: 'cocaLanded',
+  LAWSUIT: 'lawsuit',
+  SUPREME_COURT: 'supremeCourt',
 }
 
 /** Bible object: inShelf → inspected (optional) → pickedUp */
@@ -60,6 +63,18 @@ export const ASSETS = {
   PRAY_AUDIO: 'pray_audio',
   RABBITHOLE_VIDEO: 'rabbithole',
   SHRUG: 'shrug',
+  HQ: 'hq',
+  SUPREME_COURT: 'supremecourt',
+  SUPREME_COURT_2: 'supremecourt2',
+  COKEBOSS: 'cokeboss',
+  NCR_OFFICER: 'ncrcamofficer_right',
+  NCR_OFFICER_LEFT: 'ncrcamofficer_left',
+  NCR_OFFICER_SINGLE: 'ncr_officer_single', // Runtime cropped texture (frame 0 only)
+  // NCR officer: 4 cells in 177×100 image = 44×100 per frame
+  NCR_FRAME_WIDTH: 44,
+  NCR_FRAME_HEIGHT: 100,
+  NCR_IDLE_FRAME: 0,
+  NCR_WALK_FRAMES: [0, 3],
   // Clerk: 180×66 sheet split into 4 quarters (45×66 per frame)
   CLERK_FRAME_WIDTH: 45,
   CLERK_FRAME_HEIGHT: 66,
@@ -87,6 +102,8 @@ export function getLayout(width, height) {
     clerkStartY: height * 0.88,
     clerkWalkY: height * 0.88,
     clerkFallbackY: height * 0.88,
+    clerkLeftBound: 25,
+    clerkRightBound: width - 25,
 
     // Bible: invisible button midway down, 28% in from right
     bibleX: width * (1 - 0.28),
@@ -143,8 +160,32 @@ export function getLayout(width, height) {
     waynesClerkRightBound: width - 10,
     catLeftBound: 30,
     catRightBound: 120,
-    catY: height - 2,
+    catY: height * 0.88,
     catSpeed: 0.04,
+    waynesClerkScale: 1.15,
+    waynesCatScale: 0.65,
+
+    // Executive Suite (HQ): start near top (small), walk down hallway (get bigger)
+    executiveStartY: height * 0.28, // Slightly down from top
+    executiveWalkY: height * 0.88,
+    executiveFloorYMin: height * 0.5,
+    executiveFloorYMax: height + 10,
+    executiveClerkLeftBound: 10,
+    executiveClerkRightBound: width - 10,
+    executiveStartX: width * 0.12, // Slightly right of left edge on level 3
+    executiveScaleLockX: width * 0.5, // Lock officer scale when walking right past 50%
+    executiveGuardX: width * 0.66, // Guard at 66% – dialogue + camera pan to reveal last third
+    executiveScrollFactor: 0.5,
+    executiveMinScale: 0.35,
+    executiveMaxScale: 1.1,
+    executiveCokeBossX: width * 0.85,
+    executiveCokeBossY: height * 0.45, // Floating, fixed position on right
+
+    // Supreme Court (level 4): center facing off, battle
+    supremeCourtPlayerX: width * 0.35,
+    supremeCourtPlayerY: height * 0.88,
+    supremeCourtCokeBossX: width * 0.65,
+    supremeCourtCokeBossY: height * 0.88,
 
     // Stage 1: clerk slowly sinks through floor of current room (ms)
     fallThroughFloorDuration: 2500,
