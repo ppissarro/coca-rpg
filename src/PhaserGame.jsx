@@ -8,6 +8,7 @@ import {
   ASSETS,
   getLayout,
 } from './game/config'
+import { enterLevel, LEVEL_KEYS } from './game/levelRegistry'
 import { showRabbitholeOverlay } from './rabbitholeOverlay'
 
 class OfficeScene extends Phaser.Scene {
@@ -27,6 +28,10 @@ class OfficeScene extends Phaser.Scene {
     this.movementEnabled = true
     this.walkingToBible = false
     this.bibleAcquired = false
+    this.glassesAcquired = false
+    this.glassesWorn = false
+    this.glassesZone = null
+    this.walkingToGlasses = false
 
     this.sceneState = SCENE_STATE.FREE_WALK
     this.bibleState = BIBLE_STATE.IN_SHELF
@@ -85,8 +90,12 @@ class OfficeScene extends Phaser.Scene {
     if (this.sound.context && typeof this.sound.context.resume === 'function') {
       this.sound.context.resume()
     }
-    if (this.officeMusic && !this.officeMusic.isPlaying) {
-      this.officeMusic.play()
+    this.tryPlayOfficeMusic()
+  }
+
+  tryPlayOfficeMusic() {
+    if (this.sceneState === SCENE_STATE.FREE_WALK && this.officeMusic && !this.officeMusic.isPlaying) {
+      try { this.officeMusic.play() } catch (_) {}
     }
   }
 
@@ -129,6 +138,7 @@ class OfficeScene extends Phaser.Scene {
     })
     this.load.image(ASSETS.COCA_INTERMISSION, 'coca.jpeg')
     this.load.image(ASSETS.WAYNES_BG, 'waynes_bg.png')
+    this.load.image(ASSETS.SUNGLASSES, 'sunglasses.png')
     this.load.audio(ASSETS.WAYNES_AUDIO, 'waynes.wav')
     this.load.spritesheet(ASSETS.CAT_LEFT, 'cat_left.png', {
       frameWidth: ASSETS.CAT_FRAME_WIDTH,
@@ -152,6 +162,12 @@ class OfficeScene extends Phaser.Scene {
     })
     this.load.video(ASSETS.RABBITHOLE_VIDEO, 'rabbithole.mp4', true)
     this.load.image(ASSETS.HQ, 'hq.png')
+    this.load.image(ASSETS.HQ2, 'hq2.png')
+    this.load.audio(ASSETS.HQ1_AUDIO, 'hq1.wav')
+    this.load.audio(ASSETS.HQ2_AUDIO, 'hq2.wav')
+    this.load.audio(ASSETS.SUPREME_COURT_AUDIO, 'supremecourt.wav')
+    this.load.audio(ASSETS.LAWSUIT_AUDIO, 'lawsuit.wav')
+    this.load.audio(ASSETS.TRANSFORM_AUDIO, 'transform.wav')
     this.load.image(ASSETS.SUPREME_COURT, 'supremecourt.png')
     this.load.image(ASSETS.SUPREME_COURT_2, 'supremecourt2.png')
     this.load.image(ASSETS.COKEBOSS, 'cokeboss.png')
@@ -196,7 +212,30 @@ class OfficeScene extends Phaser.Scene {
 
     if (this.cache.audio.exists(ASSETS.OFFICE_AUDIO)) {
       this.officeMusic = this.sound.add(ASSETS.OFFICE_AUDIO, { loop: true })
-      // Don't play yet on mobile—browsers block autoplay until first user tap
+      const startOnFirstInteraction = () => {
+        this.unlockAudio()
+        if (this._startOverlay) {
+          this._startOverlay.destroy()
+          this._startOverlay = null
+        }
+      }
+      const overlayRect = this.add
+        .rectangle(width / 2, height / 2, width + 20, height + 20, 0x000000, 0.4)
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+      const startText = this.add.text(width / 2, height / 2, 'Click to start', {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#d0d5ff',
+      }).setOrigin(0.5)
+      this._startOverlay = this.add.container(0, 0, [overlayRect, startText]).setDepth(10000)
+      overlayRect.on('pointerdown', startOnFirstInteraction)
+      startText.setInteractive({ useHandCursor: true })
+      startText.on('pointerdown', startOnFirstInteraction)
+      this.input.once('pointerdown', startOnFirstInteraction)
+      document.addEventListener('click', startOnFirstInteraction, { once: true })
+      document.addEventListener('keydown', startOnFirstInteraction, { once: true })
+      document.addEventListener('touchstart', startOnFirstInteraction, { once: true })
     }
     // Re-bind Test Rabbithole button now that scene is ready (__phaserScene is set)
     if (typeof window.initRabbitholeButton === 'function') {
@@ -338,6 +377,30 @@ class OfficeScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
   }
 
+  handleGlassesPickup() {
+    if (this.glassesAcquired) return
+    this.glassesAcquired = true
+    if (this.glassesProp) {
+      this.glassesProp.destroy()
+      this.glassesProp = null
+    }
+    const { width } = this.scale
+    const layout = getLayout(width, this.scale.height)
+    if (this.overlayText) this.overlayText.destroy()
+    this.overlayText = this.add.text(width / 2, layout.overlayTextY, 'You picked up sunglasses.', {
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      color: '#f4f4f4',
+      backgroundColor: '#000000c0',
+      padding: { x: 4, y: 2 },
+    })
+    this.overlayText.setOrigin(0.5, 0)
+    this.time.delayedCall(2000, () => {
+      if (this.overlayText) this.overlayText.destroy()
+      this.overlayText = null
+    })
+  }
+
   createClerk(width, height, layout) {
     const { clerkStartX, clerkStartY, clerkFallbackY } = layout
 
@@ -440,7 +503,7 @@ class OfficeScene extends Phaser.Scene {
       .setDepth(5000)
     this.inventoryBtn.on('pointerdown', () => {
       this.unlockAudio()
-      if (this.sceneState !== SCENE_STATE.WAYNES_ROOM && !this.executiveGuardSequence) return
+      if (this.sceneState !== SCENE_STATE.WAYNES_ROOM && this.sceneState !== SCENE_STATE.EXECUTIVE_SUITE && !this.executiveGuardSequence) return
       if (this.inventoryOpen) this.hideInventory()
       else this.showInventory()
     })
@@ -504,6 +567,65 @@ class OfficeScene extends Phaser.Scene {
       if (this.inventoryOpen) this.hideInventory()
       else this.showInventory()
     })
+    // Left/right movement (arrow keys and A/D)
+    const MOVE_STEP = 36
+    const moveLeftRight = (dir) => {
+      if (this.inventoryOpen || !this.clerk) return
+      if (this.sceneState === SCENE_STATE.RAID || this.sceneState === SCENE_STATE.LOGO || this.sceneState === SCENE_STATE.INTERMISSION || this.sceneState === SCENE_STATE.RABBITHOLE || this.sceneState === SCENE_STATE.LAWSUIT || this.sceneState === SCENE_STATE.SUPREME_COURT) return
+      if (!this.movementEnabled && this.sceneState !== SCENE_STATE.WAYNES_ROOM && this.sceneState !== SCENE_STATE.COCA_LANDED && this.sceneState !== SCENE_STATE.EXECUTIVE_SUITE) return
+      if (this.executiveGuardSequence) return
+
+      const layout = getLayout(this.scale.width, this.scale.height)
+      const player = (this.sceneState === SCENE_STATE.EXECUTIVE_SUITE && this.waynesNcrOfficer)
+        ? this.waynesNcrOfficer
+        : (this.sceneState === SCENE_STATE.WAYNES_ROOM && this.waynesTransformed && this.waynesNcrOfficer)
+          ? this.waynesNcrOfficer
+          : this.clerk
+      const { clerkWalkY, executiveWalkY, cocaWalkY } = layout
+      let leftBound, rightBound, walkY
+      if (this.sceneState === SCENE_STATE.FREE_WALK) {
+        leftBound = layout.clerkLeftBound
+        rightBound = layout.clerkRightBound
+        walkY = clerkWalkY
+      } else if (this.sceneState === SCENE_STATE.WAYNES_ROOM) {
+        leftBound = layout.waynesClerkLeftBound
+        rightBound = layout.waynesClerkRightBound
+        walkY = clerkWalkY
+      } else if (this.sceneState === SCENE_STATE.EXECUTIVE_SUITE) {
+        leftBound = layout.executiveClerkLeftBound
+        rightBound = layout.executiveClerkRightBound
+        walkY = executiveWalkY
+      } else if (this.sceneState === SCENE_STATE.COCA_LANDED) {
+        leftBound = layout.clerkLeftBound
+        rightBound = layout.clerkRightBound
+        walkY = cocaWalkY
+      } else return
+
+      this.unlockAudio()
+      this.walkingToBible = false
+      let targetX = player.x + dir * MOVE_STEP
+      targetX = Phaser.Math.Clamp(targetX, leftBound, rightBound)
+      this.target = { x: targetX, y: walkY }
+    }
+    const leftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT)
+    const rightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
+    const aKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
+    const dKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    leftKey.on('down', () => moveLeftRight(-1))
+    rightKey.on('down', () => moveLeftRight(1))
+    aKey.on('down', () => moveLeftRight(-1))
+    dKey.on('down', () => moveLeftRight(1))
+    // Document listener so arrow keys work without canvas focus
+    this._moveKeyHandler = (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault()
+        moveLeftRight(-1)
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault()
+        moveLeftRight(1)
+      }
+    }
+    document.addEventListener('keydown', this._moveKeyHandler)
     // Debug: R triggers rabbithole – use document listener so it works without canvas focus
     this._rKeyHandler = (e) => {
       if ((e.key !== 'r' && e.key !== 'R') || this.sceneState === SCENE_STATE.RABBITHOLE) return
@@ -525,6 +647,9 @@ class OfficeScene extends Phaser.Scene {
   }
 
   shutdown() {
+    if (this._moveKeyHandler) {
+      document.removeEventListener('keydown', this._moveKeyHandler)
+    }
     if (this._rKeyHandler) {
       document.removeEventListener('keydown', this._rKeyHandler)
     }
@@ -539,7 +664,7 @@ class OfficeScene extends Phaser.Scene {
   }
 
   showInventory() {
-    if (this.sceneState !== SCENE_STATE.WAYNES_ROOM && !this.executiveGuardSequence) return
+    if (this.sceneState !== SCENE_STATE.WAYNES_ROOM && this.sceneState !== SCENE_STATE.EXECUTIVE_SUITE && !this.executiveGuardSequence) return
     if (this.inventoryContainer) return
     this.inventoryOpen = true
     const { width, height } = this.scale
@@ -561,9 +686,29 @@ class OfficeScene extends Phaser.Scene {
       color: '#8ecae6',
     })
     const children = [backdrop, bg, title]
+    if (this.glassesAcquired) {
+      const glassesBg = this.add.rectangle(x + 100, y + 48, 24, 16, 0x2a2a3a).setOrigin(0.5, 0.5)
+      const glassesLabel = this.add.text(x + 100, y + 48, '👓', { fontSize: '12px' }).setOrigin(0.5, 0.5)
+      const glassesText = this.add.text(x + 100, y + 62, this.glassesWorn ? '[Remove]' : '[Wear]', {
+        fontFamily: 'monospace',
+        fontSize: '7px',
+        color: this.glassesWorn ? '#8a8a9a' : '#8ecae6',
+      }).setOrigin(0.5, 0)
+      const glassesClick = () => {
+        this.glassesWorn = !this.glassesWorn
+        glassesText.setText(this.glassesWorn ? '[Remove]' : '[Wear]')
+        glassesText.setColor(this.glassesWorn ? '#8a8a9a' : '#8ecae6')
+        if (this.glassesWorn && this.sceneState === SCENE_STATE.EXECUTIVE_SUITE) this.applyGlassesEffect()
+      }
+      glassesBg.setInteractive({ useHandCursor: true })
+      glassesLabel.setInteractive({ useHandCursor: true })
+      glassesBg.on('pointerdown', glassesClick)
+      glassesLabel.on('pointerdown', glassesClick)
+      children.push(glassesBg, glassesLabel, glassesText)
+    }
     if (this.bibleAcquired && this.textures.exists(ASSETS.BIBLE)) {
       const bibleImg = this.add.image(x + 28, y + 48, ASSETS.BIBLE).setOrigin(0.5, 0.5)
-      bibleImg.setScale(2)
+      bibleImg.setScale(1.2)
       bibleImg.setInteractive({ useHandCursor: true })
       bibleImg.on('pointerdown', () => {
         if (this.executiveGuardSequence) {
@@ -592,7 +737,8 @@ class OfficeScene extends Phaser.Scene {
         this.input.off('pointermove', onMove)
       })
       children.push(bibleImg, tooltip)
-    } else {
+    }
+    if (!this.bibleAcquired && !this.glassesAcquired) {
       const emptyText = this.add.text(x + 8, y + 32, '(empty)', {
         fontFamily: 'monospace',
         fontSize: '7px',
@@ -716,6 +862,10 @@ class OfficeScene extends Phaser.Scene {
     this.waynesTransformed = true
     this.unlockAudio()
     this.hideInventory()
+    if (this.waynesMusic?.isPlaying) this.waynesMusic.stop()
+    if (this.cache.audio.exists(ASSETS.TRANSFORM_AUDIO)) {
+      this.time.delayedCall(1500, () => this.sound.play(ASSETS.TRANSFORM_AUDIO))
+    }
     const layout = getLayout(this.scale.width, this.scale.height)
     const posX = this.clerk?.x ?? this.scale.width / 2
     const posY = this.clerk?.y ?? layout.clerkWalkY
@@ -853,6 +1003,9 @@ class OfficeScene extends Phaser.Scene {
     if (this.sceneState === SCENE_STATE.RABBITHOLE) return
 
     this.idleTime += delta
+    if (this.audioUnlocked && this.sceneState === SCENE_STATE.FREE_WALK && this.officeMusic && !this.officeMusic.isPlaying) {
+      this.tryPlayOfficeMusic()
+    }
     const layout = getLayout(this.scale.width, this.scale.height)
     const { bibleStandX, bibleStandY } = layout
 
@@ -890,8 +1043,8 @@ class OfficeScene extends Phaser.Scene {
         }
         if (this.sceneState === SCENE_STATE.EXECUTIVE_SUITE && layout.executiveClerkLeftBound != null && layout.executiveClerkRightBound != null) {
           player.x = Phaser.Math.Clamp(player.x, layout.executiveClerkLeftBound, layout.executiveClerkRightBound)
-          const guardX = layout.executiveGuardX ?? this.scale.width * 0.66
-          if (!this.executiveGuardSequence && player.x >= guardX - 25 && dx > 0) {
+          const guardX = layout.executiveGuardX ?? this.scale.width * 0.78
+          if (!this.executiveGuardSequence && this.glassesWorn && player.x >= guardX - 25 && dx > 0) {
             this.target = null
             player.x = guardX - 22
             this.startExecutiveGuardSequence()
@@ -932,10 +1085,14 @@ class OfficeScene extends Phaser.Scene {
     }
 
     if (this.sceneState === SCENE_STATE.WAYNES_ROOM) {
-      const { waynesClerkLeftBound, waynesClerkRightBound, catLeftBound, catRightBound, catSpeed } = layout
+      const { waynesClerkLeftBound, waynesClerkRightBound, catLeftBound, catRightBound, catSpeed, clerkWalkY } = layout
       const waynesPlayer = (this.waynesTransformed && this.waynesNcrOfficer) ? this.waynesNcrOfficer : this.clerk
       if (waynesClerkLeftBound != null && waynesClerkRightBound != null) {
         waynesPlayer.x = Phaser.Math.Clamp(waynesPlayer.x, waynesClerkLeftBound, waynesClerkRightBound)
+      }
+      if (this.waynesTransformed && this.waynesNcrOfficer && !this.target) {
+        const waynesBounce = Math.sin(this.idleTime * 0.004) * 0.15
+        this.waynesNcrOfficer.y = clerkWalkY - waynesBounce
       }
       if (this.waynesBg) {
         const w = this.scale.width
@@ -962,16 +1119,17 @@ class OfficeScene extends Phaser.Scene {
       const w = this.scale.width
       const h = this.scale.height
       if (this.executiveGuardSequence) {
-        // Officer locked on screen as bg pans – keep position and scale fixed
+        const guardBounce = Math.sin(this.idleTime * 0.0035) * 0.15
         if (this.executiveGuardOfficerLockX != null) {
           this.waynesNcrOfficer.x = this.executiveGuardOfficerLockX
-          this.waynesNcrOfficer.y = this.executiveGuardOfficerLockY ?? executiveWalkY
+          this.waynesNcrOfficer.y = (this.executiveGuardOfficerLockY ?? executiveWalkY) - guardBounce
         }
         if (this.executiveGuardOfficerScale != null) {
           this.waynesNcrOfficer.setScale(this.executiveGuardOfficerScale)
         }
         if (this.executiveCokeBoss != null && this.executiveCokeBossOffsetX != null) {
           this.executiveCokeBoss.x = this.executiveBg.x + this.executiveCokeBossOffsetX
+          this.executiveCokeBoss.y = (layout.executiveCokeBossY ?? h * 0.45) - guardBounce
         }
       } else {
         if (executiveClerkLeftBound != null && executiveClerkRightBound != null) {
@@ -992,25 +1150,42 @@ class OfficeScene extends Phaser.Scene {
         const tY = Phaser.Math.Clamp((this.waynesNcrOfficer.y - topY) / (bottomY - topY), 0, 1)
         const t = (tX + tY) / 2
         this.waynesNcrOfficer.setScale(Phaser.Math.Linear(minS, maxS, t))
+        if (!this.target) {
+          const execBounce = Math.sin(this.idleTime * 0.004) * 0.15
+          this.waynesNcrOfficer.y = executiveWalkY - execBounce
+        }
+      }
+    }
+    if (this.sceneState === SCENE_STATE.SUPREME_COURT) {
+      const supBounce = Math.sin(this.idleTime * 0.0035) * 0.15
+      const supBounceBoss = Math.sin(this.idleTime * 0.0032 + 0.5) * 0.15
+      if (this.waynesNcrOfficer) {
+        const baseY = layout.supremeCourtPlayerY ?? this.scale.height * 0.88
+        this.waynesNcrOfficer.y = baseY - supBounce
+      }
+      if (this.supremeCourtCokeBoss) {
+        const bossY = layout.supremeCourtCokeBossY ?? this.scale.height * 0.88
+        this.supremeCourtCokeBoss.y = bossY - supBounceBoss
       }
     }
 
+    const bounce = Math.sin(this.idleTime * 0.004) * 0.15
     const bob =
       !this.target &&
       (this.sceneState === SCENE_STATE.FREE_WALK ||
         this.sceneState === SCENE_STATE.WAYNES_ROOM ||
         this.sceneState === SCENE_STATE.COCA_LANDED)
-        ? Math.sin(this.idleTime * 0.005) * 1
+        ? bounce
         : 0
 
     if (this.usingClerkSprite) {
-      this.clerk.y += bob * 0.05
+      this.clerk.y -= bob * 0.2
       if (!this.target) {
         this.clerk.play(this.facing === 'left' ? 'clerk_idle_left' : 'clerk_idle_right', true)
       }
     } else {
       this.clerkHead.x = this.clerk.x
-      this.clerkHead.y = this.clerk.y - 18 + bob
+      this.clerkHead.y = this.clerk.y - 18 - bob * 0.2
       if (this.glassesLeft && this.glassesRight) {
         this.glassesLeft.x = this.clerkHead.x - 5
         this.glassesLeft.y = this.clerkHead.y - 1
@@ -2237,7 +2412,7 @@ class OfficeScene extends Phaser.Scene {
     const { width, height } = this.scale
     const layout = getLayout(width, height)
 
-    // Cleanup from any previous state
+    // Cleanup from any previous state before entering new level
     if (this.executiveBg) {
       this.executiveBg.destroy()
       this.executiveBg = null
@@ -2260,7 +2435,7 @@ class OfficeScene extends Phaser.Scene {
     }
     this.waynesTransformed = false
 
-    if (key === 'waynesRoom') {
+    if (key === LEVEL_KEYS.WAYNES_ROOM) {
       this.bibleAcquired = true
       if (this.waynesBg) this.waynesBg.destroy()
       this.waynesBg = null
@@ -2268,50 +2443,24 @@ class OfficeScene extends Phaser.Scene {
       this.cat = null
       if (this.waynesMusic?.isPlaying) this.waynesMusic.stop()
       this.startWaynesRoom()
-    } else if (key === 'waynesRoomTransformed') {
+    } else if (key === LEVEL_KEYS.WAYNES_ROOM_TRANSFORMED) {
       this.bibleAcquired = true
       if (this.waynesBg) this.waynesBg.destroy()
       this.waynesBg = null
       if (this.cat) this.cat.destroy()
       this.cat = null
       if (this.waynesMusic?.isPlaying) this.waynesMusic.stop()
-      this.startWaynesRoom()
-      this.waynesTransformed = true
-      if (this.clerk) this.clerk.setVisible(false)
-      if (this.clerkHead) this.clerkHead.setVisible(false)
-      if (this.glassesLeft) this.glassesLeft.setVisible(false)
-      if (this.glassesRight) this.glassesRight.setVisible(false)
-      if (this.tie) this.tie.setVisible(false)
-      if (this.pocket) this.pocket.setVisible(false)
-      if (this.textures.exists(ASSETS.NCR_OFFICER)) {
-        const px = this.clerk?.x ?? width / 2
-        const py = this.clerk?.y ?? layout.clerkWalkY
-        this.waynesNcrOfficer = this.add
-          .sprite(px, py, ASSETS.NCR_OFFICER, 0)
-          .setOrigin(0.5, 1)
-          .setDepth(10)
-      }
+      enterLevel(this, LEVEL_KEYS.WAYNES_ROOM_TRANSFORMED, layout)
       this.target = { x: layout.waynesClerkRightBound - 5, y: layout.clerkWalkY }
-    } else if (key === 'executiveSuite') {
-      if (this.waynesBg) this.waynesBg.setVisible(false)
-      if (this.cat) this.cat.setVisible(false)
-      if (this.clerk) this.clerk.setVisible(false)
+    } else if (key === LEVEL_KEYS.EXECUTIVE_SUITE) {
       this.startExecutiveSuite()
-    } else if (key === 'supremeCourt') {
-      if (this.waynesBg) this.waynesBg.setVisible(false)
-      if (this.executiveBg) this.executiveBg.setVisible(false)
-      if (this.clerk) this.clerk.setVisible(false)
+    } else if (key === LEVEL_KEYS.SUPREME_COURT) {
       this.bibleAcquired = true
-      if (this.textures.exists(ASSETS.NCR_OFFICER)) {
-        this.waynesNcrOfficer = this.add
-          .sprite(width / 2, layout.clerkWalkY, ASSETS.NCR_OFFICER, 0)
-          .setOrigin(0.5, 1)
-          .setDepth(10)
-      }
-      this.startSupremeCourt()
-    } else if (key === 'rabbithole') {
+      enterLevel(this, LEVEL_KEYS.SUPREME_COURT, layout)
+      if (this.waynesNcrOfficer) this.waynesNcrOfficer.setTexture(ASSETS.NCR_OFFICER, 0)
+    } else if (key === LEVEL_KEYS.RABBITHOLE) {
       this.startRabbitholeSequence()
-    } else if (key === 'cocaLanded') {
+    } else if (key === LEVEL_KEYS.COCA_LANDED) {
       if (this.backgroundImage) this.backgroundImage.setVisible(false)
       if (this.waynesBg) this.waynesBg.setVisible(false)
       if (this.cat) this.cat.setVisible(false)
@@ -2324,67 +2473,7 @@ class OfficeScene extends Phaser.Scene {
   startExecutiveSuite() {
     const { width, height } = this.scale
     const layout = getLayout(width, height)
-
-    this.sceneState = SCENE_STATE.EXECUTIVE_SUITE
-    this.target = null
-    this.movementEnabled = true
-    this.executiveGuardSequence = null
-    this.executiveGuardOfficerLockX = null
-    this.executiveGuardOfficerLockY = null
-    this.executiveGuardOfficerScale = null
-    if (this.executiveCokeBoss) {
-      this.executiveCokeBoss.destroy()
-      this.executiveCokeBoss = null
-    }
-    this.executiveCokeBossOffsetX = null
-    if (this.executiveGuardDialogueContainer) {
-      this.executiveGuardDialogueContainer.destroy()
-      this.executiveGuardDialogueContainer = null
-    }
-
-    if (this.backgroundImage) this.backgroundImage.setVisible(false)
-    if (this.waynesBg) this.waynesBg.setVisible(false)
-    if (this.cat) this.cat.setVisible(false)
-    if (this.clerk) this.clerk.setVisible(false)
-
-    // Show NCR officer (player) – start slightly right (small), grow as he walks down and right
-    const startX = layout.executiveStartX ?? layout.executiveClerkLeftBound ?? 10
-    const startY = layout.executiveStartY ?? height * 0.22
-    if (!this.waynesNcrOfficer && this.textures.exists(ASSETS.NCR_OFFICER)) {
-      this.waynesNcrOfficer = this.add
-        .sprite(startX, startY, ASSETS.NCR_OFFICER, 0)
-        .setOrigin(0.5, 1)
-        .setDepth(10)
-    }
-    if (this.waynesNcrOfficer) {
-      this.waynesNcrOfficer.setVisible(true)
-      this.waynesNcrOfficer.setPosition(startX, startY)
-    }
-
-    if (this.officeMusic?.isPlaying) this.officeMusic.stop()
-    if (this.waynesMusic?.isPlaying) this.waynesMusic.stop()
-
-    if (this.textures.exists(ASSETS.HQ)) {
-      const hqImg = this.textures.get(ASSETS.HQ).getSourceImage()
-      const imgW = hqImg ? hqImg.width : width
-      const imgH = hqImg ? hqImg.height : height
-      const scale = Math.max(width / imgW, height / imgH)
-      this.executiveBg = this.add
-        .image(width / 2, height / 2, ASSETS.HQ)
-        .setOrigin(0.5, 0.5)
-        .setDisplaySize(Math.ceil(imgW * scale), Math.ceil(imgH * scale))
-        .setDepth(0)
-    } else {
-      this.executiveBg = this.add
-        .rectangle(width / 2, height / 2, width, height, 0x1a1d24)
-        .setDepth(0)
-    }
-
-    if (this.statusText) this.statusText.setVisible(true).setText('Click on the floor to walk.')
-    if (this.inventoryBtn) this.inventoryBtn.setVisible(false)
-    if (this.introCaptionText) {
-      this.introCaptionText.setVisible(true).setText('CoCA HQ')
-    }
+    enterLevel(this, LEVEL_KEYS.EXECUTIVE_SUITE, layout)
   }
 
   startExecutiveGuardSequence() {
@@ -2420,15 +2509,19 @@ class OfficeScene extends Phaser.Scene {
       ease: 'Power2.InOut',
     })
 
-    // Coke boss floating on right side of room – fixed in room, moves with bg pan
+    // Coke boss only visible when wearing glasses (HQ shifts to hq2.png)
     const cokeBossScreenX = layout.executiveCokeBossX ?? w * 0.85
     this.executiveCokeBossOffsetX = cokeBossScreenX - targetBgX
     const cokeBossY = layout.executiveCokeBossY ?? height * 0.45
-    if (this.textures.exists(ASSETS.COKEBOSS)) {
+    if (this.glassesWorn && !this.executiveCokeBoss && this.textures.exists(ASSETS.COKEBOSS)) {
       this.executiveCokeBoss = this.add
         .image(this.executiveBg.x + this.executiveCokeBossOffsetX, cokeBossY, ASSETS.COKEBOSS)
         .setOrigin(0.5, 0.5)
         .setDepth(9)
+    }
+    if (!this.glassesWorn && this.executiveBg && this.textures.exists(ASSETS.HQ2)) {
+      this.executiveBg.setTexture(ASSETS.HQ)
+      this.executiveBg.refresh()
     }
 
     // Endless lorem ipsum dialogue (cycle on click, never ends)
@@ -2461,15 +2554,37 @@ class OfficeScene extends Phaser.Scene {
     bg.on('pointerdown', advance)
     this.executiveGuardDialogueContainer = this.add.container(0, 0, [bg, text])
     this.executiveGuardDialogueContainer.setDepth(6000) // Below inventory so dialogue doesn't block it
-    if (this.statusText) this.statusText.setVisible(false)
+    if (this.statusText) {
+      this.statusText.setVisible(true).setText('Open Inventory (top-right) and use the Bible.')
+      this.statusText.setDepth(8500)
+    }
     if (this.inventoryBtn) {
       this.inventoryBtn.setVisible(true)
       this.inventoryBtn.setDepth(8500) // Above dialogue so always clickable
     }
   }
 
+  applyGlassesEffect() {
+    if (!this.executiveBg || !this.glassesWorn || !this.textures.exists(ASSETS.HQ2)) return
+    // Switch to HQ2 soundtrack when putting on glasses
+    if (this.hq1Music?.isPlaying) this.hq1Music.stop()
+    if (this.cache.audio.exists(ASSETS.HQ2_AUDIO)) {
+      this.hq2Music = this.sound.add(ASSETS.HQ2_AUDIO, { loop: true })
+      this.hq2Music.play()
+    }
+    const layout = getLayout(this.scale.width, this.scale.height)
+    const w = this.scale.width
+    const height = this.scale.height
+    this.executiveBg.setTexture(ASSETS.HQ2)
+    const img = this.textures.get(ASSETS.HQ2).getSourceImage()
+    const scale = Math.max(w / (img?.width ?? w), height / (img?.height ?? height))
+    const dispW = Math.ceil((img?.width ?? w) * scale)
+    const dispH = Math.ceil((img?.height ?? height) * scale)
+    this.executiveBg.setDisplaySize(dispW, dispH)
+  }
+
   triggerBibleThrow() {
-    if (!this.executiveGuardSequence || !this.executiveCokeBoss || !this.waynesNcrOfficer) return
+    if (!this.executiveGuardSequence || !this.waynesNcrOfficer) return
     if (!this.textures.exists(ASSETS.BIBLE)) {
       this.triggerLawsuitWarning()
       return
@@ -2481,6 +2596,12 @@ class OfficeScene extends Phaser.Scene {
       this.executiveGuardDialogueContainer = null
     }
     if (this.inventoryBtn) this.inventoryBtn.setVisible(false)
+
+    // No coke boss (no glasses) – go straight to lawsuit
+    if (!this.executiveCokeBoss) {
+      this.triggerLawsuitWarning()
+      return
+    }
 
     const fromX = this.waynesNcrOfficer.x
     const fromY = this.waynesNcrOfficer.y - 20
@@ -2512,6 +2633,9 @@ class OfficeScene extends Phaser.Scene {
 
   triggerLawsuitWarning() {
     if (!this.executiveGuardSequence) return
+    if (this.cache.audio.exists(ASSETS.LAWSUIT_AUDIO)) {
+      this.sound.play(ASSETS.LAWSUIT_AUDIO)
+    }
     this.executiveGuardSequence = null
     this.executiveGuardOfficerLockX = null
     this.executiveGuardOfficerLockY = null
@@ -2544,172 +2668,31 @@ class OfficeScene extends Phaser.Scene {
   startSupremeCourt() {
     const { width, height } = this.scale
     const layout = getLayout(width, height)
-
-    this.sceneState = SCENE_STATE.SUPREME_COURT
-    this.target = null
-    if (this.executiveBg) this.executiveBg.setVisible(false)
-    if (this.executiveCokeBoss) {
-      this.executiveCokeBoss.destroy()
-      this.executiveCokeBoss = null
-    }
-    this.executiveCokeBossOffsetX = null
-
-    // Supreme Court background – constantly switches between two images
-    const bgKeys = [ASSETS.SUPREME_COURT, ASSETS.SUPREME_COURT_2]
-    const hasBg = this.textures.exists(ASSETS.SUPREME_COURT)
-    const hasBg2 = this.textures.exists(ASSETS.SUPREME_COURT_2)
-    if (hasBg) {
-      const img = this.textures.get(ASSETS.SUPREME_COURT).getSourceImage()
-      const imgW = img ? img.width : width
-      const imgH = img ? img.height : height
-      const bgScale = Math.max(width / imgW, height / imgH)
-      const dispW = Math.ceil(imgW * bgScale)
-      const dispH = Math.ceil(imgH * bgScale)
-      this.supremeCourtBg = this.add
-        .image(width / 2, height / 2, ASSETS.SUPREME_COURT)
-        .setOrigin(0.5, 0.5)
-        .setDisplaySize(dispW, dispH)
-        .setDepth(0)
-      this.supremeCourtBgDispSize = { w: dispW, h: dispH }
-      this.supremeCourtBgIndex = 0
-      this.supremeCourtBgTimer = this.time.addEvent({
-        delay: 500,
-        callback: () => {
-          if (!this.supremeCourtBg || this.sceneState !== SCENE_STATE.SUPREME_COURT) return
-          this.supremeCourtBgIndex = 1 - this.supremeCourtBgIndex
-          const key = hasBg2 ? bgKeys[this.supremeCourtBgIndex] : ASSETS.SUPREME_COURT
-          if (this.textures.exists(key)) {
-            this.supremeCourtBg.setTexture(key)
-            if (this.supremeCourtBgDispSize) {
-              this.supremeCourtBg.setDisplaySize(this.supremeCourtBgDispSize.w, this.supremeCourtBgDispSize.h)
-            }
-          }
-        },
-        loop: true,
-      })
-    } else {
-      this.supremeCourtBg = this.add
-        .rectangle(width / 2, height / 2, width, height, 0x1a1d24)
-        .setDepth(0)
-    }
-
-    // NCR officer center-left, facing right (smaller scale)
-    const playerX = layout.supremeCourtPlayerX ?? width * 0.35
-    const playerY = layout.supremeCourtPlayerY ?? height * 0.88
-    const supremeCourtScale = 0.65
+    enterLevel(this, LEVEL_KEYS.SUPREME_COURT, layout)
     if (this.waynesNcrOfficer) {
-      this.waynesNcrOfficer.setVisible(true)
       this.waynesNcrOfficer.setTexture(ASSETS.NCR_OFFICER, 0)
-      this.waynesNcrOfficer.setPosition(playerX, playerY)
-      this.waynesNcrOfficer.setScale(supremeCourtScale)
-      this.ncrFacing = 'right'
     }
-
-    // Coke boss center-right, facing off (smaller scale)
-    const bossX = layout.supremeCourtCokeBossX ?? width * 0.65
-    const bossY = layout.supremeCourtCokeBossY ?? height * 0.88
-    if (this.textures.exists(ASSETS.COKEBOSS)) {
-      this.supremeCourtCokeBoss = this.add
-        .image(bossX, bossY, ASSETS.COKEBOSS)
-        .setOrigin(0.5, 1)
-        .setScale(supremeCourtScale)
-        .setDepth(10)
-    }
-
-    if (this.statusText) this.statusText.setVisible(true).setText('Supreme Court – battle mechanics (placeholder)')
-    if (this.introCaptionText) this.introCaptionText.setVisible(true).setText('Supreme Court')
   }
 
   startWaynesRoom() {
     const { width, height } = this.scale
     const layout = getLayout(width, height)
 
-    // Ensure black dimmer from logo transition is destroyed (covers screen otherwise)
     if (this._raidDimmer) {
       this._raidDimmer.destroy()
       this._raidDimmer = null
     }
 
-    this.sceneState = SCENE_STATE.WAYNES_ROOM
-    this.movementEnabled = true
-    this.target = null
-
-    if (this.clerk) {
-      this.clerk.setVisible(true)
-      this.clerk.setDepth(10)
-    }
-    if (this.clerkHead) this.clerkHead.setVisible(true)
-    if (this.glassesLeft) this.glassesLeft.setVisible(true)
-    if (this.glassesRight) this.glassesRight.setVisible(true)
-    if (this.tie) this.tie.setVisible(true)
-    if (this.pocket) this.pocket.setVisible(true)
-
-    if (this.backgroundImage) this.backgroundImage.setVisible(false)
-
-    if (this.cache.audio.exists(ASSETS.WAYNES_AUDIO)) {
-      this.waynesMusic = this.sound.add(ASSETS.WAYNES_AUDIO, { loop: true })
-      this.waynesMusic.play()
-    }
-
-    if (this.textures.exists(ASSETS.WAYNES_BG)) {
-      const waynesImg = this.textures.get(ASSETS.WAYNES_BG).getSourceImage()
-      const imgW = waynesImg ? waynesImg.width : 487
-      const imgH = waynesImg ? waynesImg.height : 179
-      // Cover: fill screen (bg may crop at edges)
-      const scale = Math.max(width / imgW, height / imgH)
-      this.waynesBg = this.add
-        .image(width / 2, height / 2, ASSETS.WAYNES_BG)
-        .setOrigin(0.5, 0.5)
-        .setDisplaySize(Math.ceil(imgW * scale), Math.ceil(imgH * scale))
-        .setDepth(0)
-    } else {
-      // Fallback if waynes_bg failed to load
-      this.waynesBg = this.add
-        .rectangle(width / 2, height / 2, width, height, 0x1a1d24)
-        .setDepth(0)
-    }
-
-    if (this.textures.exists(ASSETS.CAT_LEFT)) {
-      if (!this.anims.exists('cat_walk_left')) {
-        this.anims.create({
-          key: 'cat_walk_left',
-          frames: this.anims.generateFrameNumbers(ASSETS.CAT_LEFT, {
-            start: ASSETS.CAT_WALK_FRAMES[0],
-            end: ASSETS.CAT_WALK_FRAMES[1],
-          }),
-          frameRate: 5,
-          repeat: -1,
-        })
-      }
-      if (!this.anims.exists('cat_walk_right')) {
-        this.anims.create({
-          key: 'cat_walk_right',
-          frames: this.anims.generateFrameNumbers(ASSETS.CAT_RIGHT, {
-            start: ASSETS.CAT_WALK_FRAMES[0],
-            end: ASSETS.CAT_WALK_FRAMES[1],
-          }),
-          frameRate: 5,
-          repeat: -1,
-        })
-      }
-      this.cat = this.add
-        .sprite(layout.catLeftBound, layout.catY, ASSETS.CAT_RIGHT, 0)
-        .setOrigin(0.5, 1)
-        .setDepth(5)
-        .setScale(layout.waynesCatScale ?? 0.65)
-      this.catDirection = 1
-      this.cat.play('cat_walk_right', true)
-    }
-
-    if (this.clerk && layout.waynesClerkScale != null) {
-      this.clerk.setScale(layout.waynesClerkScale)
-    }
-    this.clerk.setPosition(width / 2, layout.clerkWalkY)
-    if (this.inventoryBtn) this.inventoryBtn.setVisible(true)
-    if (this.statusText) this.statusText.setVisible(true).setText('Click on the floor to walk.')
+    enterLevel(this, LEVEL_KEYS.WAYNES_ROOM, layout)
     if (this.overlayText) this.overlayText.setVisible(false)
-    if (this.introCaptionText) {
-      this.introCaptionText.setVisible(true).setText("Wayne's place.")
+    // Ensure clerk is visible and in front when in clerk mode (not transformed)
+    if (!this.waynesTransformed && this.clerk) {
+      this.clerk.setVisible(true).setDepth(5000).setAlpha(1)
+      if (this.clerkHead) this.clerkHead.setVisible(true).setDepth(5000).setAlpha(1)
+      if (this.glassesLeft) this.glassesLeft.setVisible(true).setDepth(5000).setAlpha(1)
+      if (this.glassesRight) this.glassesRight.setVisible(true).setDepth(5000).setAlpha(1)
+      if (this.tie) this.tie.setVisible(true).setDepth(5000).setAlpha(1)
+      if (this.pocket) this.pocket.setVisible(true).setDepth(5000).setAlpha(1)
     }
   }
 }
@@ -2731,7 +2714,7 @@ export default function PhaserGame() {
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       audio: {
-        disableWebAudio: true, // Fixes Chrome loop bug (stops after 2 loops)
+        disableWebAudio: false,
       },
       scene: OfficeScene,
     }

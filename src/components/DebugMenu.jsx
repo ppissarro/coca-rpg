@@ -1,12 +1,13 @@
 import { useState } from 'react'
+import { LEVEL_KEYS } from '../game/levelRegistry'
 
 const PHASER_LEVELS = [
-  { key: 'waynesRoom', label: "Wayne's Place (clerk)" },
-  { key: 'waynesRoomTransformed', label: "Wayne's Place (transformed)" },
-  { key: 'executiveSuite', label: 'Executive Suite' },
-  { key: 'supremeCourt', label: 'Supreme Court (level 4)' },
-  { key: 'rabbithole', label: 'Fall Sequence' },
-  { key: 'cocaLanded', label: 'CoCA (coca_bg)' },
+  { key: LEVEL_KEYS.WAYNES_ROOM, label: "Wayne's Place (clerk)" },
+  { key: LEVEL_KEYS.WAYNES_ROOM_TRANSFORMED, label: "Wayne's Place (transformed)" },
+  { key: LEVEL_KEYS.EXECUTIVE_SUITE, label: 'Executive Suite' },
+  { key: LEVEL_KEYS.SUPREME_COURT, label: 'Supreme Court (level 4)' },
+  { key: LEVEL_KEYS.RABBITHOLE, label: 'Fall Sequence' },
+  { key: LEVEL_KEYS.COCA_LANDED, label: 'CoCA (coca_bg)' },
 ]
 
 export default function DebugMenu({ onDebugJump }) {

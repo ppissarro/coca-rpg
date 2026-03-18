@@ -36,7 +36,7 @@ export const ASSETS = {
   OFFICE_BG: 'office_bg',
   OFFICE_BG_NOBIBLE: 'office_bg_nobible',
   OFFICE_BG_RAID: 'office_bg_raid',
-  OFFICE_AUDIO: 'office_audio',
+  OFFICE_AUDIO: 'office',
   SWIPE_AUDIO: 'swipe',
   FIND_BIBLE_AUDIO: 'findthatbible',
   SWAT_CRASH_AUDIO: 'swat_team_crash_in',
@@ -64,7 +64,14 @@ export const ASSETS = {
   RABBITHOLE_VIDEO: 'rabbithole',
   SHRUG: 'shrug',
   HQ: 'hq',
+  HQ2: 'hq2',
+  SUNGLASSES: 'sunglasses',
+  HQ1_AUDIO: 'hq1',
+  HQ2_AUDIO: 'hq2',
   SUPREME_COURT: 'supremecourt',
+  SUPREME_COURT_AUDIO: 'supremecourt_audio',
+  LAWSUIT_AUDIO: 'lawsuit',
+  TRANSFORM_AUDIO: 'transform',
   SUPREME_COURT_2: 'supremecourt2',
   COKEBOSS: 'cokeboss',
   NCR_OFFICER: 'ncrcamofficer_right',
@@ -165,27 +172,31 @@ export function getLayout(width, height) {
     waynesClerkScale: 1.15,
     waynesCatScale: 0.65,
 
-    // Executive Suite (HQ): start near top (small), walk down hallway (get bigger)
-    executiveStartY: height * 0.28, // Slightly down from top
+    // Executive Suite (HQ): start near top (small), walk down hallway (get bigger), pick glasses, walk to boss
+    executiveStartY: height * 0.22, // Near top – small, grows as you walk down
     executiveWalkY: height * 0.88,
     executiveFloorYMin: height * 0.5,
     executiveFloorYMax: height + 10,
     executiveClerkLeftBound: 10,
-    executiveClerkRightBound: width - 10,
+    executiveClerkRightBound: width - 5, // Allow walking across full HQ
     executiveStartX: width * 0.12, // Slightly right of left edge on level 3
     executiveScaleLockX: width * 0.5, // Lock officer scale when walking right past 50%
-    executiveGuardX: width * 0.66, // Guard at 66% – dialogue + camera pan to reveal last third
+    executiveGuardX: width * 0.78, // Guard triggers here – dialogue + camera pan; allows walking further right first
     executiveScrollFactor: 0.5,
     executiveMinScale: 0.35,
     executiveMaxScale: 1.1,
     executiveCokeBossX: width * 0.85,
     executiveCokeBossY: height * 0.45, // Floating, fixed position on right
+    executiveGlassesDeskX: width * 0.55, // Glasses on desk
+    executiveGlassesDeskY: height * 0.48, // Slightly up – fixed on desk (moves with bg)
 
-    // Supreme Court (level 4): center facing off, battle
+    // Supreme Court (level 4): center facing off, battle – larger scale so characters pop off bg
     supremeCourtPlayerX: width * 0.35,
     supremeCourtPlayerY: height * 0.88,
+    supremeCourtPlayerScale: 1.1,
     supremeCourtCokeBossX: width * 0.65,
     supremeCourtCokeBossY: height * 0.88,
+    supremeCourtCokeBossScale: 1.1,
 
     // Stage 1: clerk slowly sinks through floor of current room (ms)
     fallThroughFloorDuration: 2500,
