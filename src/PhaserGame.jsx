@@ -1019,27 +1019,38 @@ class OfficeScene extends Phaser.Scene {
       let dx = this.target.x - player.x
       const dy = this.target.y - player.y
       const dist = Math.hypot(dx, dy)
-      if (dist < 1) {
+      // Wayne's → Executive: transition as soon as we reach/near target or cross the right threshold
+      const waynesExitThreshold = layout.waynesClerkRightBound != null ? layout.waynesClerkRightBound - 15 : null
+      const shouldExitWaynes = this.waynesTransformed && waynesExitThreshold != null && player.x >= waynesExitThreshold
+      if (dist < 8 || (shouldExitWaynes && dx >= 0)) {
         if (this.walkingToBible && !this.bibleAcquired) {
           this.clerk.x = bibleStandX
           this.clerk.y = bibleStandY
           this.target = null
           this.walkingToBible = false
           this.showBibleMenu()
-        } else if (this.waynesTransformed && layout.waynesClerkRightBound != null && player.x >= layout.waynesClerkRightBound - 10) {
+        } else if (shouldExitWaynes) {
           this.target = null
           this.startExecutiveSuite()
-        } else {
+        } else if (dist < 1) {
           this.target = null
         }
-      } else {
-        player.x += (dx / dist) * speed
-        player.y += (dy / dist) * speed
+      }
+      if (!shouldExitWaynes || this.sceneState === SCENE_STATE.WAYNES_ROOM) {
+        // Keep moving until we've arrived (dist < 1) or crossed Wayne's exit threshold
+        if (dist >= 1 && !shouldExitWaynes) {
+          player.x += (dx / dist) * speed
+          player.y += (dy / dist) * speed
+        }
         if (this.sceneState === SCENE_STATE.FREE_WALK && layout.clerkLeftBound != null && layout.clerkRightBound != null) {
           player.x = Phaser.Math.Clamp(player.x, layout.clerkLeftBound, layout.clerkRightBound)
         }
         if (this.sceneState === SCENE_STATE.WAYNES_ROOM && layout.waynesClerkLeftBound != null && layout.waynesClerkRightBound != null) {
           player.x = Phaser.Math.Clamp(player.x, layout.waynesClerkLeftBound, layout.waynesClerkRightBound)
+          if (this.waynesTransformed && waynesExitThreshold != null && player.x >= waynesExitThreshold) {
+            this.target = null
+            this.startExecutiveSuite()
+          }
         }
         if (this.sceneState === SCENE_STATE.EXECUTIVE_SUITE && layout.executiveClerkLeftBound != null && layout.executiveClerkRightBound != null) {
           player.x = Phaser.Math.Clamp(player.x, layout.executiveClerkLeftBound, layout.executiveClerkRightBound)

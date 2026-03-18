@@ -162,19 +162,14 @@ export const LEVEL_DESCRIPTORS = {
         scene.glassesProp.destroy()
         scene.glassesProp = null
       }
-      if (!scene.glassesAcquired && scene.textures.exists(ASSETS.SUNGLASSES) && scene.executiveBg) {
+      if (!scene.glassesAcquired && scene.textures.exists(ASSETS.SUNGLASSES)) {
         const { executiveGlassesDeskX, executiveGlassesDeskY } = layout
-        const w = scene.scale.width
-        const h = scene.scale.height
-        const localX = executiveGlassesDeskX - w / 2
-        const localY = executiveGlassesDeskY - h / 2
         scene.glassesProp = scene.add
-          .image(localX, localY, ASSETS.SUNGLASSES)
+          .image(executiveGlassesDeskX, executiveGlassesDeskY, ASSETS.SUNGLASSES)
           .setOrigin(0.5, 0.5)
           .setScale(0.22)
           .setDepth(8)
           .setInteractive({ useHandCursor: true })
-        scene.executiveBg.add(scene.glassesProp)
         scene.glassesProp.on('pointerdown', () => {
           scene.unlockAudio()
           if (scene.glassesAcquired || scene.sceneState !== SCENE_STATE.EXECUTIVE_SUITE) return
